@@ -1,0 +1,21 @@
+node_modules/
+.expo/
+dist/
+lib/
+.DS_Store
+*.log
+.env
+.env.local
+ios/Pods/
+ios/build/
+android/.gradle/
+android/build/
+android/app/build/
+.idea/
+.vscode/
+.tsbuildinfo
+*.tsbuildinfo
+
+# Debug artifacts (playwright screenshots, canvas dumps)
+.playwright-mcp/
+/*.png

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "lib/module",
+    "declarationDir": "lib/typescript",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": false
+  }
+}

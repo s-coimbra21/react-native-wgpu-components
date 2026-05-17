@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "border-beam-example",
+    "slug": "border-beam-example",
+    "version": "0.0.1",
+    "scheme": "borderbeamexample",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "experiments": {
+      "typedRoutes": true
+    },
+    "ios": {
+      "bundleIdentifier": "dev.borderbeam.example",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "dev.borderbeam.example"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "react-native-border-beam-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Monorepo for react-native-border-beam: a GPU-accelerated animated border-glow component for React Native (iOS, Android, Web).",
+  "scripts": {
+    "build": "pnpm --filter react-native-border-beam build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "example": "pnpm --filter border-beam-example start",
+    "ios": "pnpm --filter border-beam-example ios",
+    "android": "pnpm --filter border-beam-example android",
+    "web": "pnpm --filter border-beam-example web"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "packageManager": "pnpm@9.12.0"
+}

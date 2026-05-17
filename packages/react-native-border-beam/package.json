@@ -1,0 +1,68 @@
+{
+  "name": "react-native-border-beam",
+  "version": "0.1.0",
+  "description": "GPU-accelerated animated border-glow component for React Native (iOS, Android, Web). A port of border-beam built on react-native-wgpu + TypeGPU + Reanimated.",
+  "license": "MIT",
+  "main": "./src/index.ts",
+  "react-native": "./src/index.ts",
+  "source": "./src/index.ts",
+  "module": "./lib/module/index.js",
+  "types": "./lib/typescript/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/typescript/index.d.ts",
+      "default": "./lib/module/index.js"
+    }
+  },
+  "files": [
+    "src",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "react-native",
+    "expo",
+    "webgpu",
+    "border",
+    "beam",
+    "glow",
+    "animation",
+    "typegpu",
+    "reanimated",
+    "gpu",
+    "shader"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anthropic-public/react-native-border-beam.git"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint skipped (no eslint config yet)'",
+    "clean": "rm -rf lib"
+  },
+  "peerDependencies": {
+    "react": ">=19.0.0",
+    "react-native": ">=0.81.0",
+    "react-native-wgpu": ">=0.5.0",
+    "react-native-webgpu-worklets": ">=0.3.0",
+    "react-native-reanimated": ">=4.1.0",
+    "react-native-worklets": ">=0.5.0",
+    "typegpu": ">=0.11.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@webgpu/types": "^0.1.70",
+    "react": "19.2.6",
+    "react-native": "0.85.3",
+    "react-native-reanimated": "^4.3.1",
+    "react-native-wgpu": "^0.5.11",
+    "react-native-webgpu-worklets": "^0.3.0",
+    "react-native-worklets": "^0.8.3",
+    "typegpu": "^0.11.4",
+    "typescript": "^5.6.0",
+    "unplugin-typegpu": "^0.11.3"
+  }
+}
