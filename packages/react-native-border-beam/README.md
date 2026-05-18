@@ -45,6 +45,7 @@ export function Example() {
 | `borderRadius` | `number` | `16` | px. |
 | `innerGlow` | `number` | from mode | 0–1. |
 | `active` | `boolean` | `true` | Smoothly fades the effect in/out via Reanimated. |
+| `followCursor` | `boolean` | `false` | When true, the bright sweep tracks the cursor while hovering (requires `react-native-gesture-handler`). On touch-only devices the effect falls back to the time-based auto-rotation. |
 | `duration` | `number` | `3` | Seconds per orbit. |
 | `strength` | `number` | `1` | 0–1 overall opacity multiplier. |
 | `brightness` | `number` | `1.3` | Stroke intensity multiplier. |

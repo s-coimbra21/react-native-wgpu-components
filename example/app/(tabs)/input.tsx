@@ -71,6 +71,10 @@ const styles = StyleSheet.create({
   h1: { color: '#fff', fontSize: 28, fontWeight: '700', marginBottom: 4 },
   p: { color: '#888', fontSize: 14, marginBottom: 24, lineHeight: 20 },
   label: { color: '#888', fontSize: 13, marginTop: 18, marginBottom: 8 },
+  // RN-Web renders TextInput as a native <input>, which gets the user-agent focus
+  // ring. outlineStyle/Width/Color are RN-Web style extensions that map directly to
+  // CSS outline; cast to any so TS (which only knows the native RN style props) is
+  // happy. The BorderBeam itself is the focus indicator now.
   input: {
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -79,7 +83,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     fontSize: 16,
     width: 300,
-  },
+    outlineStyle: 'none',
+    outlineWidth: 0,
+  } as never,
   searchContainer: {
     backgroundColor: '#1c1c22',
     borderRadius: 999,
@@ -91,5 +97,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     paddingVertical: 8,
-  },
+    outlineStyle: 'none',
+    outlineWidth: 0,
+  } as never,
 });

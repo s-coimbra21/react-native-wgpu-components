@@ -17,6 +17,7 @@ export default function PlaygroundScreen() {
   const [mode, setMode] = useState<Mode>('aura');
   const [scale, setScale] = useState(1);
   const [active, setActive] = useState(true);
+  const [followCursor, setFollowCursor] = useState(false);
   const [duration, setDuration] = useState(3);
   const [strength, setStrength] = useState(1);
   const [brightness, setBrightness] = useState(1.3);
@@ -34,6 +35,7 @@ export default function PlaygroundScreen() {
           mode={mode}
           scale={scale}
           active={active}
+          followCursor={followCursor}
           duration={duration}
           strength={strength}
           brightness={brightness}
@@ -66,6 +68,14 @@ export default function PlaygroundScreen() {
           value={active}
           onValueChange={setActive}
           thumbColor={active ? '#ffd600' : '#666'}
+        />
+      </Group>
+
+      <Group title="Follow cursor (hover the preview)">
+        <Switch
+          value={followCursor}
+          onValueChange={setFollowCursor}
+          thumbColor={followCursor ? '#ffd600' : '#666'}
         />
       </Group>
 

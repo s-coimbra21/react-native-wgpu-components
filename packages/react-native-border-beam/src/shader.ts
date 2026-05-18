@@ -17,11 +17,23 @@ struct BeamUniforms {
   saturation: f32,
   colorCount:      u32,
   strokeIntensity: f32,
-  _pad:            f32,
+  head:            f32,
   colors:          array<vec4<f32>, 8>,
 };
 
 @group(0) @binding(0) var<uniform> u: BeamUniforms;
+
+// Tunable behaviour constants. Centralised so the inline fragment math reads as
+// "what we're doing" rather than "what these numbers happen to be".
+const COLOR_DRIFT_RATE:    f32 = 0.45;  // gradient cycles per duration cycle
+const COLOR_DRIFT_WOBBLE:  f32 = 0.07;  // sinusoidal wobble amplitude
+const COLOR_DRIFT_FREQ:    f32 = 1.7;   // wobble frequency, cycles per duration cycle
+const SWEEP_SIGMA:         f32 = 0.22;  // tanFade gaussian sigma (perimeter fraction)
+const INNER_FADE_K:        f32 = 1.4;   // elliptical inner-fade steepness
+const GLASS_GAIN:          f32 = 0.55;  // master multiplier on the glass haze
+const STROKE_BAND_FACTOR:  f32 = 4.0;   // multiplier on u.strokeWidth → band width
+const MIN_STROKE_BAND:     f32 = 3.0;   // floor for the stroke gaussian width
+const INTENSITY_CLAMP:     f32 = 1.5;   // max combined glass+stroke after brightness
 
 struct VertexOut {
   @builtin(position) position: vec4<f32>,
@@ -126,24 +138,27 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
   let dist = sdRoundBox(pix, halfInner, u.radius);
   let s = perimeterCoord(pix, halfInner);
 
-  let safeDuration = max(u.duration, 0.0001);
-  let head = fract(u.time / safeDuration);
+  // Head is computed CPU-side so the cursor tracker can blend its own value in.
+  // Gradient drift still uses u.time so the colours keep flowing even when the
+  // head is locked to a stationary cursor.
+  // u.duration is guaranteed >= 0.05 by the CPU contract (see UniformWriteInput).
+  let head = u.head;
 
   // Color: sample the palette at a rotated, slightly-wobbling phase so the gradient
   // drifts around the rect over time independently of the brightness sweep. Without
   // this drift the colors stay anchored to fixed angular positions and the effect
   // looks statically tied to the rect's geometry. The drift rate is intentionally
   // not a simple fraction of the head's rate so colors and head never realign.
-  let cycles = u.time / safeDuration;
-  let colorDrift = cycles * 0.45 + 0.07 * sin(cycles * 1.7);
+  let cycles = u.time / u.duration;
+  let colorDrift = cycles * COLOR_DRIFT_RATE + COLOR_DRIFT_WOBBLE * sin(cycles * COLOR_DRIFT_FREQ);
   let rotatedS = fract(s - colorDrift + 1.0);
   let color = sampleGradient(rotatedS, u.colorCount);
 
-  // Wide, feathered tangential sweep mimicking the original conic mask. Sigma 0.22
-  // gives a visible arc of ~44% of the perimeter with soft ramps on both sides.
+  // Wide, feathered tangential sweep mimicking the original conic mask. SWEEP_SIGMA
+  // 0.22 gives a visible arc of ~44% of the perimeter with soft ramps on both sides.
   let tailDist = fract(head - s + 1.0);
   let symDist = min(tailDist, 1.0 - tailDist);
-  let tanFade = exp(-pow(symDist / 0.22, 2.0));
+  let tanFade = exp(-pow(symDist / SWEEP_SIGMA, 2.0));
 
   // Inside fade uses RADIAL distance from the rect's centre, normalised by halfInner —
   // so its iso-contours are ellipses matching the rect's aspect ratio, NOT parallel
@@ -153,25 +168,26 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
   // outer bloom genuinely follows the border's shape.
   let safeHalf = max(halfInner, vec2<f32>(1.0));
   let ellipticalDist = length(pix / safeHalf);  // 0 at centre, 1 at border midpoints
-  let innerFade = 1.0 - exp(-pow(ellipticalDist * 1.4, 2.0));
+  let innerFade = 1.0 - exp(-pow(ellipticalDist * INNER_FADE_K, 2.0));
 
-  let outwardReach = max(u.bloomRadius, 6.0);
+  // bloomRadius is already floored CPU-side via MIN_BLOOM_PX in resolveModeSizes.
+  let outwardReach = u.bloomRadius;
   let outerDist = max(dist, 0.0);
   let isInside = select(0.0, 1.0, dist <= 0.0);
   let perpFade = innerFade * isInside
                + exp(-pow(outerDist / outwardReach, 2.0)) * (1.0 - isInside);
 
   // Glass haze: soft interior tint scaled by innerGlow.
-  let glass = tanFade * perpFade * u.innerGlow * 0.55;
+  let glass = tanFade * perpFade * u.innerGlow * GLASS_GAIN;
 
-  // On-border stroke (line preset only — strokeIntensity is 0 for sm/md). A sharper
+  // On-border stroke (line mode only — strokeIntensity is 0 for aura). A sharper
   // gaussian band centred on the perimeter, modulated by the same rotating tanFade so
-  // the line is a moving colored beam tracing the border.
-  let strokeBand = max(u.strokeWidth * 4.0, 3.0);
+  // the line is a moving coloured beam tracing the border.
+  let strokeBand = max(u.strokeWidth * STROKE_BAND_FACTOR, MIN_STROKE_BAND);
   let strokeFade = exp(-pow(abs(dist) / strokeBand, 2.0));
   let stroke = strokeFade * tanFade * u.strokeIntensity;
 
-  let intensity = clamp((glass + stroke) * u.brightness, 0.0, 1.5);
+  let intensity = clamp((glass + stroke) * u.brightness, 0.0, INTENSITY_CLAMP);
 
   var rgb = color.rgb * intensity;
   rgb = adjustSaturation(rgb, u.saturation);

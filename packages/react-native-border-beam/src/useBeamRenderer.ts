@@ -1,11 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { PixelRatio } from 'react-native';
 import { useSurface } from 'react-native-wgpu';
-import {
-  useSharedValue,
-  withTiming,
-  type SharedValue,
-} from 'react-native-reanimated';
+import { useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 
 import { resolveColors } from './palettes';
 import { BEAM_SHADER_WGSL } from './shader';
@@ -18,6 +14,14 @@ import {
 } from './uniforms';
 import type { BorderBeamProps, ModeDefaults } from './types';
 import { enableWorkletsGPU } from './enableWorklets';
+import { lerpCyclic } from './perimeterMath';
+
+export interface CursorTracking {
+  /** 0 when not hovering, animated up to 1 while hovering. */
+  hoverWeight: SharedValue<number>;
+  /** Last-known cursor position expressed as a perimeter coord in [0,1). */
+  cursorS: SharedValue<number>;
+}
 
 enableWorkletsGPU();
 
@@ -63,57 +67,38 @@ export interface UseBeamRendererResult {
   canvasRef: ReturnType<typeof useSurface>['ref'];
 }
 
+/** A shared value that eases toward `value` over `durationMs` whenever the input
+ * changes. Centralises the four near-identical `useSharedValue` + `useEffect` blocks
+ * that animate strength / brightness / saturation / activeFactor. */
+function useAnimatedNumber(value: number, durationMs: number): SharedValue<number> {
+  const sv = useSharedValue(value);
+  useEffect(() => {
+    sv.set(withTiming(value, { duration: durationMs }));
+  }, [value, durationMs, sv]);
+  return sv;
+}
+
 export function useBeamRenderer(
   props: BorderBeamProps,
   contentSize: ContentSize,
+  cursorTracking?: CursorTracking,
 ): UseBeamRendererResult {
-  const resolved = useMemo(
-    () => resolveProps(props),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      props.mode,
-      props.scale,
-      props.colors,
-      props.active,
-      props.duration,
-      props.strength,
-      props.brightness,
-      props.saturation,
-      props.borderRadius,
-      props.innerGlow,
-    ],
-  );
+  // liveRef.current.resolved is overwritten every render regardless, so memoising
+  // resolveProps would only save the cheap function call itself — not worth a
+  // hand-rolled dep array.
+  const resolved = resolveProps(props);
 
-  const strengthSV = useSharedValue(resolved.strength);
-  const brightnessSV = useSharedValue(resolved.brightness);
-  const saturationSV = useSharedValue(resolved.saturation);
-  const activeFactor = useSharedValue(resolved.active ? 1 : 0);
+  const strengthSV = useAnimatedNumber(resolved.strength, 200);
+  const brightnessSV = useAnimatedNumber(resolved.brightness, 200);
+  const saturationSV = useAnimatedNumber(resolved.saturation, 200);
+  const activeFactor = useAnimatedNumber(resolved.active ? 1 : 0, 400);
 
-  useEffect(() => {
-    strengthSV.set(withTiming(resolved.strength, { duration: 200 }));
-  }, [resolved.strength, strengthSV]);
-  useEffect(() => {
-    brightnessSV.set(withTiming(resolved.brightness, { duration: 200 }));
-  }, [resolved.brightness, brightnessSV]);
-  useEffect(() => {
-    saturationSV.set(withTiming(resolved.saturation, { duration: 200 }));
-  }, [resolved.saturation, saturationSV]);
-  useEffect(() => {
-    activeFactor.set(withTiming(resolved.active ? 1 : 0, { duration: 400 }));
-  }, [resolved.active, activeFactor]);
-
-  const liveRef = useRef({
-    resolved,
-    contentSize,
-    sv: {
-      strength: strengthSV,
-      brightness: brightnessSV,
-      saturation: saturationSV,
-      activeFactor,
-    },
-  });
+  // Only the per-render fields go through the ref; the shared values are stable
+  // references captured directly by the frame closure below.
+  const liveRef = useRef({ resolved, contentSize, cursor: cursorTracking });
   liveRef.current.resolved = resolved;
   liveRef.current.contentSize = contentSize;
+  liveRef.current.cursor = cursorTracking;
 
   const { ref, surface } = useSurface();
 
@@ -212,9 +197,15 @@ export function useBeamRenderer(
       const { floats, uints, buffer: uniformBytes } = createUniformArray();
       const dpr = PixelRatio.get();
       // Random phase offset so multiple instances don't orbit in lockstep.
-      const phaseOffset = Math.random() * 10;
-      const startTime = performance.now() / 1000 - phaseOffset;
-      let rafHandle: number | undefined;
+      const startTime = performance.now() / 1000 - Math.random() * 10;
+      // The head is a STATEFUL value: it advances by frameDelta/duration each frame
+      // (so it integrates duration changes naturally) and gets pulled toward the
+      // cursor by hoverWeight. When the cursor lifts, the head resumes from its
+      // current position instead of teleporting to wherever absolute time has gone.
+      // Gradient drift uses the absolute `time` uniform so colours keep flowing.
+      let head = Math.random();
+      let lastFrameSec = performance.now() / 1000;
+      let rafHandle = 0;
 
       const frame = (): void => {
         if (cancelled) return;
@@ -226,9 +217,9 @@ export function useBeamRenderer(
         const innerH = live.contentSize.height * dpr;
         const now = performance.now() / 1000;
 
-        const strength = readSV(live.sv.strength) * readSV(live.sv.activeFactor);
-        const brightness = readSV(live.sv.brightness);
-        const saturation = readSV(live.sv.saturation);
+        const strength = strengthSV.value * activeFactor.value;
+        const brightness = brightnessSV.value;
+        const saturation = saturationSV.value;
 
         // Resolve absolute pixel sizes from the mode's factor × element size × scale.
         // Doing this per-frame keeps the effect proportional even as the wrapped
@@ -239,6 +230,23 @@ export function useBeamRenderer(
           live.resolved.scale,
         );
 
+        // Advance the stateful head by per-frame delta. Then, if hovering, pull it
+        // toward the cursor weighted by hoverWeight (using cyclic lerp). On hover
+        // release, hoverWeight smoothly returns to 0 so the head naturally takes
+        // off from its current position rather than snapping to absolute time.
+        const duration = Math.max(live.resolved.duration, 0.05);
+        const dt = now - lastFrameSec;
+        lastFrameSec = now;
+        head = head + dt / duration;
+        head = head - Math.floor(head);
+        if (live.cursor) {
+          const w = live.cursor.hoverWeight.value;
+          if (w > 0.001) {
+            head = lerpCyclic(head, live.cursor.cursorS.value, w);
+          }
+        }
+        const elapsed = now - startTime;
+
         writeUniformArray(floats, uints, {
           resolutionW: resW,
           resolutionH: resH,
@@ -248,13 +256,14 @@ export function useBeamRenderer(
           strokeWidth: sizes.strokeWidth * dpr,
           bloomRadius: sizes.bloomRadius * dpr,
           innerGlow: live.resolved.innerGlow,
-          time: now - startTime,
-          duration: Math.max(live.resolved.duration, 0.05),
+          time: elapsed,
+          duration,
           strength,
           brightness,
           saturation,
           colorCount: live.resolved.colorCount,
           strokeIntensity: live.resolved.modeDefaults.strokeIntensity,
+          head,
           colorsRgba: live.resolved.colorsRgba,
         });
 
@@ -278,15 +287,13 @@ export function useBeamRenderer(
         device.queue.submit([encoder.finish()]);
         context.present();
 
-        rafHandle = scheduleNextFrame(frame);
+        rafHandle = requestAnimationFrame(frame);
       };
 
-      rafHandle = scheduleNextFrame(frame);
+      rafHandle = requestAnimationFrame(frame);
 
       cleanup = () => {
-        if (rafHandle !== undefined && typeof cancelAnimationFrame === 'function') {
-          cancelAnimationFrame(rafHandle);
-        }
+        if (rafHandle !== 0) cancelAnimationFrame(rafHandle);
         device.destroy?.();
       };
     })();
@@ -301,14 +308,3 @@ export function useBeamRenderer(
   return { canvasRef: ref };
 }
 
-function readSV<T>(sv: SharedValue<T>): T {
-  const anySv = sv as unknown as { get?: () => T; value: T };
-  return typeof anySv.get === 'function' ? anySv.get() : anySv.value;
-}
-
-function scheduleNextFrame(fn: () => void): number {
-  if (typeof requestAnimationFrame === 'function') {
-    return requestAnimationFrame(fn);
-  }
-  return setTimeout(fn, 16) as unknown as number;
-}

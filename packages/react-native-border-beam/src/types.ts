@@ -25,6 +25,11 @@ export interface BorderBeamProps {
   strength?: number;
   brightness?: number;
   saturation?: number;
+  /** When true, the bright sweep tracks the cursor position over the element
+   * (via react-native-gesture-handler's Hover gesture). When the cursor leaves,
+   * the sweep eases back to the time-based auto-rotation. Has no effect on
+   * touch-only devices since hover events never fire there. Default false. */
+  followCursor?: boolean;
 
   children?: ReactNode;
   style?: StyleProp<ViewStyle>;

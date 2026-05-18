@@ -14,7 +14,7 @@ import type { Mode, ModeDefaults } from './types';
 //   [12]    saturation        (f32)
 //   [13]    colorCount        (u32)  — written via Uint32Array view
 //   [14]    strokeIntensity   (f32)
-//   [15]    _pad              (f32)
+//   [15]    head              (f32)  — perimeter coord ∈ [0,1) for the bright sweep
 //   [16..47] colors[8] (vec4f each = 4 floats × 8 = 32 floats)
 export const UNIFORM_FLOAT_COUNT = 48;
 export const UNIFORM_BYTE_SIZE = UNIFORM_FLOAT_COUNT * 4; // 192 bytes
@@ -48,12 +48,15 @@ export interface UniformWriteInput {
   bloomRadius: number;
   innerGlow: number;
   time: number;
+  /** Seconds per orbit cycle. Must be >= 0.05 — the CPU is the only line of
+   * defence (shader does not re-clamp). */
   duration: number;
   strength: number;
   brightness: number;
   saturation: number;
   colorCount: number;
   strokeIntensity: number;
+  head: number;
   colorsRgba: Float32Array; // length >= 32
 }
 
@@ -84,17 +87,23 @@ export function writeUniformArray(
   floats[12] = input.saturation;
   uints[13] = input.colorCount;
   floats[14] = input.strokeIntensity;
-  floats[15] = 0;
+  floats[15] = input.head;
   const stops = Math.min(input.colorsRgba.length, 32);
   for (let i = 0; i < stops; i++) {
     floats[16 + i] = input.colorsRgba[i] ?? 0;
   }
 }
 
+/** Minimum bloom radius in DP. Below this the off-screen halo collapses and the
+ * canvas overhang vanishes on very small content. Shared between the component
+ * (canvas overhang) and the renderer (shader uniform). */
+export const MIN_BLOOM_PX = 6;
+
 /** Helper used by both the renderer and the component: derive the absolute pixel
  * values (stroke width, bloom radius) for a given mode + scale + measured content
  * size. Both sizes scale with the element's smaller half-dimension so the effect
- * looks proportional regardless of element size. */
+ * looks proportional regardless of element size. Bloom radius is floored at
+ * `MIN_BLOOM_PX` so the off-screen halo stays visible on tiny elements. */
 export function resolveModeSizes(
   defaults: ModeDefaults,
   contentSize: { width: number; height: number },
@@ -103,6 +112,6 @@ export function resolveModeSizes(
   const minHalfDim = Math.min(contentSize.width, contentSize.height) / 2;
   return {
     strokeWidth: defaults.strokeWidthFactor * minHalfDim * scale,
-    bloomRadius: defaults.bloomRadiusFactor * minHalfDim * scale,
+    bloomRadius: Math.max(defaults.bloomRadiusFactor * minHalfDim * scale, MIN_BLOOM_PX),
   };
 }
