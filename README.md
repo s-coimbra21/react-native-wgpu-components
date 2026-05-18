@@ -72,7 +72,7 @@ for the full prop reference, palette presets, cursor tracking, and recipes.
 
 ```
 packages/react-native-wgpu-components/   the published package
-example/                                  Expo Router demo (iOS, Android, Web)
+apps/example/                             Expo Router demo (iOS, Android, Web)
 apps/docs/                                fumadocs site
 ```
 

@@ -7,7 +7,7 @@ loop — repo layout, scripts, where things live, and the conventions we follow.
 
 ```
 packages/react-native-wgpu-components/  the published npm package
-example/                                 Expo Router demo (iOS, Android, Web)
+apps/example/                            Expo Router demo (iOS, Android, Web)
 apps/docs/                               fumadocs site (https://s-coimbra21.github.io/react-native-wgpu-components/)
 ```
 
@@ -43,7 +43,7 @@ From the repo root:
 1. Add `MyComponent.tsx` (and supporting files) under
    `packages/react-native-wgpu-components/src/`.
 2. Export it from `packages/react-native-wgpu-components/src/index.ts`.
-3. Add a demo screen under `example/app/(tabs)/` or extend an existing one.
+3. Add a demo screen under `apps/example/app/(tabs)/` or extend an existing one.
 4. Add a docs page under `apps/docs/content/docs/` and link it from
    `apps/docs/content/docs/meta.json`.
 
