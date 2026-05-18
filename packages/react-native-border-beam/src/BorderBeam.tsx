@@ -3,7 +3,6 @@ import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { Canvas } from 'react-native-wgpu';
 import { useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { perimeterCoordJS } from './perimeterMath';
 import { MODE_DEFAULTS, resolveModeSizes } from './uniforms';
 import type { BorderBeamProps } from './types';
 import { useBeamRenderer, type CursorTracking } from './useBeamRenderer';
@@ -28,9 +27,10 @@ export function BorderBeam(props: BorderBeamProps): React.ReactElement {
   // calls are essentially free (one tiny object each, lifetime = component) so we
   // pay that cost and let `cursorTracking` be the explicit feature signal.
   const hoverWeight = useSharedValue(0);
-  const cursorS = useSharedValue(0);
+  const cursorX = useSharedValue(0);
+  const cursorY = useSharedValue(0);
   const cursorTracking: CursorTracking | undefined = props.followCursor
-    ? { hoverWeight, cursorS }
+    ? { hoverWeight, cursorX, cursorY }
     : undefined;
 
   const { canvasRef } = useBeamRenderer(props, contentSize, cursorTracking);
@@ -55,7 +55,8 @@ export function BorderBeam(props: BorderBeamProps): React.ReactElement {
         <HoverTracker
           contentSize={contentSize}
           hoverWeight={hoverWeight}
-          cursorS={cursorS}
+          cursorX={cursorX}
+          cursorY={cursorY}
         >
           {inner}
         </HoverTracker>
@@ -84,11 +85,12 @@ export function BorderBeam(props: BorderBeamProps): React.ReactElement {
 interface HoverTrackerProps {
   contentSize: { width: number; height: number };
   hoverWeight: ReturnType<typeof useSharedValue<number>>;
-  cursorS: ReturnType<typeof useSharedValue<number>>;
+  cursorX: ReturnType<typeof useSharedValue<number>>;
+  cursorY: ReturnType<typeof useSharedValue<number>>;
   children: React.ReactNode;
 }
 
-function HoverTracker({ contentSize, hoverWeight, cursorS, children }: HoverTrackerProps) {
+function HoverTracker({ contentSize, hoverWeight, cursorX, cursorY, children }: HoverTrackerProps) {
   // react-native-gesture-handler is an optional peer dep — load it lazily so consumers
   // who never opt into followCursor don't have to install it.
   const mods = useMemo(() => {
@@ -118,13 +120,14 @@ function HoverTracker({ contentSize, hoverWeight, cursorS, children }: HoverTrac
       })
       .onUpdate((e: { x: number; y: number }) => {
         'worklet';
-        cursorS.set(perimeterCoordJS(e.x - halfW, e.y - halfH, halfW, halfH));
+        cursorX.set(e.x - halfW);
+        cursorY.set(e.y - halfH);
       })
       .onFinalize(() => {
         'worklet';
         hoverWeight.set(withTiming(0, { duration: 400 }));
       });
-  }, [mods, halfW, halfH, hoverWeight, cursorS]);
+  }, [mods, halfW, halfH, hoverWeight, cursorX, cursorY]);
 
   if (!mods || !gesture) {
     return <>{children}</>;

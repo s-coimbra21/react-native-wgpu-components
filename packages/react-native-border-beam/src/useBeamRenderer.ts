@@ -2,16 +2,18 @@ import { useEffect, useRef } from 'react';
 import { PixelRatio } from 'react-native';
 import { useSurface } from 'react-native-wgpu';
 import { useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
+import tgpu from 'typegpu';
+import * as d from 'typegpu/data';
 
 import { resolveColors } from './palettes';
-import { BEAM_SHADER_WGSL } from './shader';
 import {
-  MODE_DEFAULTS,
-  UNIFORM_BYTE_SIZE,
-  createUniformArray,
-  resolveModeSizes,
-  writeUniformArray,
-} from './uniforms';
+  BeamUniforms,
+  beamFragment,
+  beamLayout,
+  fullScreenTriangle,
+  perimeterCoord,
+} from './shader';
+import { MODE_DEFAULTS, resolveModeSizes } from './uniforms';
 import type { BorderBeamProps, ModeDefaults } from './types';
 import { enableWorkletsGPU } from './enableWorklets';
 import { lerpCyclic } from './perimeterMath';
@@ -19,8 +21,11 @@ import { lerpCyclic } from './perimeterMath';
 export interface CursorTracking {
   /** 0 when not hovering, animated up to 1 while hovering. */
   hoverWeight: SharedValue<number>;
-  /** Last-known cursor position expressed as a perimeter coord in [0,1). */
-  cursorS: SharedValue<number>;
+  /** Last-known cursor position in DP, centred on the wrapped content. The renderer
+   * converts this to a perimeter coord each frame using the same `perimeterCoord`
+   * function the shader uses on the GPU. */
+  cursorX: SharedValue<number>;
+  cursorY: SharedValue<number>;
 }
 
 enableWorkletsGPU();
@@ -83,9 +88,6 @@ export function useBeamRenderer(
   contentSize: ContentSize,
   cursorTracking?: CursorTracking,
 ): UseBeamRendererResult {
-  // liveRef.current.resolved is overwritten every render regardless, so memoising
-  // resolveProps would only save the cheap function call itself — not worth a
-  // hand-rolled dep array.
   const resolved = resolveProps(props);
 
   const strengthSV = useAnimatedNumber(resolved.strength, 200);
@@ -93,8 +95,6 @@ export function useBeamRenderer(
   const saturationSV = useAnimatedNumber(resolved.saturation, 200);
   const activeFactor = useAnimatedNumber(resolved.active ? 1 : 0, 400);
 
-  // Only the per-render fields go through the ref; the shared values are stable
-  // references captured directly by the frame closure below.
   const liveRef = useRef({ resolved, contentSize, cursor: cursorTracking });
   liveRef.current.resolved = resolved;
   liveRef.current.contentSize = contentSize;
@@ -140,79 +140,44 @@ export function useBeamRenderer(
         alphaMode: 'premultiplied',
       });
 
-      const shaderModule = device.createShaderModule({
-        label: 'border-beam-shader',
-        code: BEAM_SHADER_WGSL,
-      });
-
-      const bindGroupLayout = device.createBindGroupLayout({
-        label: 'border-beam-bgl',
-        entries: [
-          {
-            binding: 0,
-            visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-            buffer: { type: 'uniform' },
-          },
-        ],
-      });
-
-      const pipelineLayout = device.createPipelineLayout({
-        label: 'border-beam-pipeline-layout',
-        bindGroupLayouts: [bindGroupLayout],
-      });
-
-      const pipeline = device.createRenderPipeline({
-        label: 'border-beam-pipeline',
-        layout: pipelineLayout,
-        vertex: { module: shaderModule, entryPoint: 'vs_main' },
-        fragment: {
-          module: shaderModule,
-          entryPoint: 'fs_main',
-          targets: [
-            {
-              format: presentationFormat,
-              blend: {
-                color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-                alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
-              },
-              writeMask: GPUColorWrite.ALL,
-            },
-          ],
-        },
+      const root = tgpu.initFromDevice({ device });
+      const uniformsBuffer = root.createBuffer(BeamUniforms).$usage('uniform');
+      const bindGroup = root.createBindGroup(beamLayout, { uniforms: uniformsBuffer });
+      const pipeline = root.createRenderPipeline({
+        vertex: fullScreenTriangle,
+        fragment: beamFragment,
         primitive: { topology: 'triangle-list' },
+        targets: {
+          format: presentationFormat,
+          blend: {
+            color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+            alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha', operation: 'add' },
+          },
+          writeMask: GPUColorWrite.ALL,
+        },
       });
 
-      const uniformBuffer = device.createBuffer({
-        label: 'border-beam-uniforms',
-        size: UNIFORM_BYTE_SIZE,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-
-      const bindGroup = device.createBindGroup({
-        label: 'border-beam-bg',
-        layout: bindGroupLayout,
-        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
-      });
-
-      const { floats, uints, buffer: uniformBytes } = createUniformArray();
       const dpr = PixelRatio.get();
-      // Random phase offset so multiple instances don't orbit in lockstep.
+      // Random initial head so multiple instances don't orbit in lockstep.
       const startTime = performance.now() / 1000 - Math.random() * 10;
       // The head is a STATEFUL value: it advances by frameDelta/duration each frame
-      // (so it integrates duration changes naturally) and gets pulled toward the
-      // cursor by hoverWeight. When the cursor lifts, the head resumes from its
-      // current position instead of teleporting to wherever absolute time has gone.
-      // Gradient drift uses the absolute `time` uniform so colours keep flowing.
+      // and gets pulled toward the cursor by hoverWeight. When the cursor lifts, the
+      // head resumes from its current position instead of teleporting to wherever
+      // absolute time has gone. Gradient drift uses absolute `time` so colours flow.
       let head = Math.random();
       let lastFrameSec = performance.now() / 1000;
       let rafHandle = 0;
+
+      // Scratch vec2 for repeated cursor → perimeter conversion.
+      const cursorVec = d.vec2f(0, 0);
+      const halfInnerVec = d.vec2f(0, 0);
+      // Per-frame scratch for colour stops (8 vec4f from the typed palette).
+      const colorVecs: d.v4f[] = Array.from({ length: 8 }, () => d.vec4f(0, 0, 0, 0));
 
       const frame = (): void => {
         if (cancelled) return;
         const live = liveRef.current;
         const tex = context.getCurrentTexture();
-        const resW = tex.width;
-        const resH = tex.height;
         const innerW = live.contentSize.width * dpr;
         const innerH = live.contentSize.height * dpr;
         const now = performance.now() / 1000;
@@ -222,18 +187,14 @@ export function useBeamRenderer(
         const saturation = saturationSV.value;
 
         // Resolve absolute pixel sizes from the mode's factor × element size × scale.
-        // Doing this per-frame keeps the effect proportional even as the wrapped
-        // content's layout changes (e.g. a focused input growing).
         const sizes = resolveModeSizes(
           live.resolved.modeDefaults,
           live.contentSize,
           live.resolved.scale,
         );
 
-        // Advance the stateful head by per-frame delta. Then, if hovering, pull it
-        // toward the cursor weighted by hoverWeight (using cyclic lerp). On hover
-        // release, hoverWeight smoothly returns to 0 so the head naturally takes
-        // off from its current position rather than snapping to absolute time.
+        // Advance head by per-frame delta. Then, if hovering, pull toward cursor
+        // using the SHARED perimeterCoord (same function the shader uses).
         const duration = Math.max(live.resolved.duration, 0.05);
         const dt = now - lastFrameSec;
         lastFrameSec = now;
@@ -242,16 +203,28 @@ export function useBeamRenderer(
         if (live.cursor) {
           const w = live.cursor.hoverWeight.value;
           if (w > 0.001) {
-            head = lerpCyclic(head, live.cursor.cursorS.value, w);
+            cursorVec.x = live.cursor.cursorX.value;
+            cursorVec.y = live.cursor.cursorY.value;
+            halfInnerVec.x = live.contentSize.width / 2;
+            halfInnerVec.y = live.contentSize.height / 2;
+            head = lerpCyclic(head, perimeterCoord(cursorVec, halfInnerVec), w);
           }
         }
         const elapsed = now - startTime;
 
-        writeUniformArray(floats, uints, {
-          resolutionW: resW,
-          resolutionH: resH,
-          innerW,
-          innerH,
+        const c = live.resolved.colorsRgba;
+        for (let i = 0; i < 8; i++) {
+          const o = i * 4;
+          const v = colorVecs[i]!;
+          v.x = c[o] ?? 0;
+          v.y = c[o + 1] ?? 0;
+          v.z = c[o + 2] ?? 0;
+          v.w = c[o + 3] ?? 0;
+        }
+
+        uniformsBuffer.write({
+          resolution: d.vec2f(tex.width, tex.height),
+          innerSize: d.vec2f(innerW, innerH),
           radius: live.resolved.borderRadius * dpr,
           strokeWidth: sizes.strokeWidth * dpr,
           bloomRadius: sizes.bloomRadius * dpr,
@@ -264,27 +237,18 @@ export function useBeamRenderer(
           colorCount: live.resolved.colorCount,
           strokeIntensity: live.resolved.modeDefaults.strokeIntensity,
           head,
-          colorsRgba: live.resolved.colorsRgba,
+          colors: colorVecs,
         });
 
-        device.queue.writeBuffer(uniformBuffer, 0, uniformBytes);
-
-        const encoder = device.createCommandEncoder({ label: 'border-beam-encoder' });
-        const pass = encoder.beginRenderPass({
-          colorAttachments: [
-            {
-              view: tex.createView(),
-              clearValue: { r: 0, g: 0, b: 0, a: 0 },
-              loadOp: 'clear',
-              storeOp: 'store',
-            },
-          ],
-        });
-        pass.setPipeline(pipeline);
-        pass.setBindGroup(0, bindGroup);
-        pass.draw(3, 1, 0, 0);
-        pass.end();
-        device.queue.submit([encoder.finish()]);
+        pipeline
+          .with(bindGroup)
+          .withColorAttachment({
+            view: tex.createView(),
+            clearValue: { r: 0, g: 0, b: 0, a: 0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          })
+          .draw(3);
         context.present();
 
         rafHandle = requestAnimationFrame(frame);
@@ -294,6 +258,7 @@ export function useBeamRenderer(
 
       cleanup = () => {
         if (rafHandle !== 0) cancelAnimationFrame(rafHandle);
+        root.destroy();
         device.destroy?.();
       };
     })();
@@ -307,4 +272,3 @@ export function useBeamRenderer(
 
   return { canvasRef: ref };
 }
-

@@ -1,198 +1,204 @@
-// Raw WGSL is used here (rather than TypeGPU `'use gpu'` fragment fns) because the
-// shader does non-trivial control flow (perimeter classification across edges/corners)
-// where WGSL is unambiguous and well-documented. CPU-side uniform layout is still
-// tracked in `uniforms.ts`. A future revision can migrate to TypeGPU-authored shaders.
-export const BEAM_SHADER_WGSL = /* wgsl */ `
-struct BeamUniforms {
-  resolution: vec2<f32>,
-  innerSize:  vec2<f32>,
-  radius:     f32,
-  strokeWidth:f32,
-  bloomRadius:f32,
-  innerGlow:  f32,
-  time:       f32,
-  duration:   f32,
-  strength:   f32,
-  brightness: f32,
-  saturation: f32,
-  colorCount:      u32,
-  strokeIntensity: f32,
-  head:            f32,
-  colors:          array<vec4<f32>, 8>,
-};
+// TypeGPU-authored shader. The previous version was a raw WGSL template string;
+// rewriting in TypeGPU gives us:
+//   - Type-checked uniform layout (the d.struct below IS the GPU contract).
+//   - A single source of truth for perimeterCoord (callable from JS too, since
+//     tgpu.fn produces a DualFn that runs on both the GPU and the JS thread).
+//   - WGSL emitted by the `unplugin-typegpu` Babel plugin.
 
-@group(0) @binding(0) var<uniform> u: BeamUniforms;
+import tgpu from 'typegpu';
+import * as d from 'typegpu/data';
+import * as std from 'typegpu/std';
 
-// Tunable behaviour constants. Centralised so the inline fragment math reads as
-// "what we're doing" rather than "what these numbers happen to be".
-const COLOR_DRIFT_RATE:    f32 = 0.45;  // gradient cycles per duration cycle
-const COLOR_DRIFT_WOBBLE:  f32 = 0.07;  // sinusoidal wobble amplitude
-const COLOR_DRIFT_FREQ:    f32 = 1.7;   // wobble frequency, cycles per duration cycle
-const SWEEP_SIGMA:         f32 = 0.22;  // tanFade gaussian sigma (perimeter fraction)
-const INNER_FADE_K:        f32 = 1.4;   // elliptical inner-fade steepness
-const GLASS_GAIN:          f32 = 0.55;  // master multiplier on the glass haze
-const STROKE_BAND_FACTOR:  f32 = 4.0;   // multiplier on u.strokeWidth → band width
-const MIN_STROKE_BAND:     f32 = 3.0;   // floor for the stroke gaussian width
-const INTENSITY_CLAMP:     f32 = 1.5;   // max combined glass+stroke after brightness
+export { fullScreenTriangle } from 'typegpu/common';
 
-struct VertexOut {
-  @builtin(position) position: vec4<f32>,
-  @location(0) uv: vec2<f32>,
-};
+// ----- tunable constants (formerly inline magic numbers in the WGSL string) -----
 
-@vertex
-fn vs_main(@builtin(vertex_index) idx: u32) -> VertexOut {
-  // Full-screen triangle (covers viewport with a single 3-vertex triangle).
-  var positions = array<vec2<f32>, 3>(
-    vec2<f32>(-1.0, -3.0),
-    vec2<f32>(-1.0,  1.0),
-    vec2<f32>( 3.0,  1.0),
+const COLOR_DRIFT_RATE = 0.45;   // gradient cycles per duration cycle
+const COLOR_DRIFT_WOBBLE = 0.07; // sinusoidal wobble amplitude
+const COLOR_DRIFT_FREQ = 1.7;    // wobble frequency, cycles per duration cycle
+const SWEEP_SIGMA = 0.22;        // tanFade gaussian sigma (perimeter fraction)
+const INNER_FADE_K = 1.4;        // elliptical inner-fade steepness
+const GLASS_GAIN = 0.55;         // master multiplier on the glass haze
+const STROKE_BAND_FACTOR = 4.0;  // multiplier on u.strokeWidth → band width
+const MIN_STROKE_BAND = 3.0;     // floor for the stroke gaussian width
+const INTENSITY_CLAMP = 1.5;     // max combined glass+stroke after brightness
+
+// ----- uniform struct -----
+
+/**
+ * GPU-side layout of the per-frame uniform. Field order matters: TypeGPU emits
+ * std140-style padding automatically, but reordering breaks the CPU-side write
+ * path that fills this struct each frame.
+ */
+export const BeamUniforms = d.struct({
+  resolution:      d.vec2f,
+  innerSize:       d.vec2f,
+  radius:          d.f32,
+  strokeWidth:     d.f32,
+  bloomRadius:     d.f32,
+  innerGlow:       d.f32,
+  time:            d.f32,
+  duration:        d.f32,    // CPU guarantees >= 0.05
+  strength:        d.f32,
+  brightness:      d.f32,
+  saturation:      d.f32,
+  colorCount:      d.u32,
+  strokeIntensity: d.f32,
+  head:            d.f32,    // perimeter coord ∈ [0,1) for the bright sweep
+  colors:          d.arrayOf(d.vec4f, 8),
+});
+
+/**
+ * Bind group layout. TypeGPU emits the @group/@binding annotations
+ * automatically from this declaration.
+ *
+ * NOTE: `beamLayout.$.uniforms` triggers a proxy that throws outside codegen
+ * mode, so we only access it inside `'use gpu'` function bodies (where Babel
+ * transforms the access into WGSL during shader resolution).
+ */
+export const beamLayout = tgpu.bindGroupLayout({
+  uniforms: { uniform: BeamUniforms },
+});
+
+// ----- helpers -----
+
+/**
+ * Signed distance to a rounded box centred at the origin. `p` is the pixel
+ * coordinate, `b` is the box half-extents, `r` is the corner radius.
+ */
+export const sdRoundBox = tgpu.fn([d.vec2f, d.vec2f, d.f32], d.f32)((p, b, r) => {
+  'use gpu';
+  const q = std.add(std.sub(std.abs(p), b), d.vec2f(r));
+  return (
+    std.min(std.max(q.x, q.y), 0) +
+    std.length(std.max(q, d.vec2f(0))) -
+    r
   );
-  let p = positions[idx];
-  var out: VertexOut;
-  out.position = vec4<f32>(p, 0.0, 1.0);
-  // UV in [0,1] range, y flipped so (0,0) is top-left of the canvas.
-  out.uv = vec2<f32>((p.x + 1.0) * 0.5, 1.0 - (p.y + 1.0) * 0.5);
-  return out;
-}
+});
 
-fn sdRoundBox(p: vec2<f32>, b: vec2<f32>, r: f32) -> f32 {
-  let q = abs(p) - b + vec2<f32>(r);
-  return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0))) - r;
-}
+/**
+ * Map a pixel position p (centred on the inner rect) to a smooth, cyclic
+ * coordinate s in [0,1), starting at top-centre and increasing clockwise.
+ * Cast a ray from origin at atan2(p.y,p.x), intersect with the rect's
+ * bounding box, and return arc length / perimeter so the palette is evenly
+ * distributed by perimeter length (not angle).
+ *
+ * This function is ALSO called from the JS render loop to convert a cursor
+ * position into the same `s` coordinate the shader uses. tgpu.fn produces a
+ * DualFn that works in both targets.
+ */
+export const perimeterCoord = tgpu.fn([d.vec2f, d.vec2f], d.f32)((p, halfInner) => {
+  'use gpu';
+  const W = std.max(halfInner.x, 1);
+  const H = std.max(halfInner.y, 1);
 
-// Map a pixel position p (centered on the inner rect) to a smooth, cyclic
-// coordinate s in [0,1), starting from the top-center and increasing clockwise.
-// We cast a ray from the rect's center at angle atan2(p.y,p.x), find where it hits
-// the rect's bounding box, and return the arc length of that hit point divided by
-// the full perimeter. This gives an EVEN distribution of the palette by perimeter
-// length (instead of by angle), so on long-aspect rects colors no longer pool on
-// the short edges. Smooth in angle everywhere — no Voronoi seams — because we
-// never project p onto the border, we project the ray.
-fn perimeterCoord(p: vec2<f32>, halfInner: vec2<f32>) -> f32 {
-  let W = max(halfInner.x, 1.0);
-  let H = max(halfInner.y, 1.0);
+  const angle = std.atan2(p.y, p.x);
+  const dir = d.vec2f(std.cos(angle), std.sin(angle));
+  const safeAbsX = std.max(std.abs(dir.x), 0.0001);
+  const safeAbsY = std.max(std.abs(dir.y), 0.0001);
+  const tx = W / safeAbsX;
+  const ty = H / safeAbsY;
+  const t = std.min(tx, ty);
+  const hit = std.mul(dir, t);
 
-  let angle = atan2(p.y, p.x);
-  let dir = vec2<f32>(cos(angle), sin(angle));
-  // Distance along the ray to each pair of bounding planes.
-  let safeAbsX = max(abs(dir.x), 0.0001);
-  let safeAbsY = max(abs(dir.y), 0.0001);
-  let tx = W / safeAbsX;
-  let ty = H / safeAbsY;
-  let t = min(tx, ty);
-  let hit = dir * t;  // intersection on the rect's bounding box
+  const onVertical = tx < ty;
+  const perim = 4 * (W + H);
 
-  let onVertical = tx < ty;  // hit on x = +/-W (left or right edge)
-  let perim = 4.0 * (W + H);
-
-  // Arc length from top-center (0, -H) going clockwise around the rect.
-  var arc: f32 = 0.0;
+  let arc = d.f32(0);
   if (onVertical) {
-    if (hit.x > 0.0) {
-      arc = W + (hit.y + H);                          // right edge
+    if (hit.x > 0) {
+      arc = W + (hit.y + H);
     } else {
-      arc = 3.0 * W + 2.0 * H + (H - hit.y);          // left edge
+      arc = 3 * W + 2 * H + (H - hit.y);
+    }
+  } else if (hit.y < 0) {
+    if (hit.x >= 0) {
+      arc = hit.x;
+    } else {
+      arc = 3 * W + 4 * H + (hit.x + W);
     }
   } else {
-    if (hit.y < 0.0) {
-      if (hit.x >= 0.0) {
-        arc = hit.x;                                  // top, right half
-      } else {
-        arc = 3.0 * W + 4.0 * H + (hit.x + W);        // top, left half (wraps)
-      }
-    } else {
-      arc = W + 2.0 * H + (W - hit.x);                // bottom
-    }
+    arc = W + 2 * H + (W - hit.x);
   }
 
-  return fract(arc / max(perim, 0.0001));
-}
+  return std.fract(arc / std.max(perim, 0.0001));
+});
 
-fn sampleGradient(s: f32, count: u32) -> vec4<f32> {
-  if (count == 0u) {
-    return vec4<f32>(1.0, 1.0, 1.0, 1.0);
-  }
-  if (count == 1u) {
-    return u.colors[0];
-  }
-  let n = f32(count);
-  let pos = s * n;
-  let lo = u32(floor(pos)) % count;
-  let hi = (lo + 1u) % count;
-  let t = fract(pos);
-  return mix(u.colors[lo], u.colors[hi], t);
-}
+/**
+ * Cyclic linear interpolation of a normalized palette by sampling u.colors,
+ * wrapping the last stop back to the first. `s` is the perimeter coord.
+ */
+const sampleGradient = tgpu.fn([d.f32], d.vec4f)((s) => {
+  'use gpu';
+  const u = beamLayout.$.uniforms;
+  const count = u.colorCount;
+  if (count === 0) return d.vec4f(1, 1, 1, 1);
+  if (count === 1) return u.colors[0]!;
+  const n = d.f32(count);
+  const pos = s * n;
+  const lo = d.u32(std.floor(pos)) % count;
+  const hi = (lo + 1) % count;
+  const t = std.fract(pos);
+  return std.mix(u.colors[lo]!, u.colors[hi]!, t);
+});
 
-fn adjustSaturation(rgb: vec3<f32>, sat: f32) -> vec3<f32> {
-  let l = dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
-  return mix(vec3<f32>(l), rgb, sat);
-}
+const adjustSaturation = tgpu.fn([d.vec3f, d.f32], d.vec3f)((rgb, sat) => {
+  'use gpu';
+  const luma = std.dot(rgb, d.vec3f(0.299, 0.587, 0.114));
+  return std.mix(d.vec3f(luma), rgb, sat);
+});
 
-@fragment
-fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
-  // Pixel coords centered on the canvas, with y growing downward to match uv flip.
-  let pix = (in.uv - vec2<f32>(0.5, 0.5)) * u.resolution;
-  let halfInner = u.innerSize * 0.5;
+// ----- fragment entry -----
 
-  let dist = sdRoundBox(pix, halfInner, u.radius);
-  let s = perimeterCoord(pix, halfInner);
+export const beamFragment = tgpu.fragmentFn({
+  in: { uv: d.vec2f },
+  out: d.vec4f,
+})(({ uv }) => {
+  'use gpu';
+  const u = beamLayout.$.uniforms;
+  const pix = std.mul(std.sub(uv, d.vec2f(0.5)), u.resolution);
+  const halfInner = std.mul(u.innerSize, 0.5);
 
-  // Head is computed CPU-side so the cursor tracker can blend its own value in.
-  // Gradient drift still uses u.time so the colours keep flowing even when the
-  // head is locked to a stationary cursor.
-  // u.duration is guaranteed >= 0.05 by the CPU contract (see UniformWriteInput).
-  let head = u.head;
+  const dist = sdRoundBox(pix, halfInner, u.radius);
+  const s = perimeterCoord(pix, halfInner);
 
-  // Color: sample the palette at a rotated, slightly-wobbling phase so the gradient
-  // drifts around the rect over time independently of the brightness sweep. Without
-  // this drift the colors stay anchored to fixed angular positions and the effect
-  // looks statically tied to the rect's geometry. The drift rate is intentionally
-  // not a simple fraction of the head's rate so colors and head never realign.
-  let cycles = u.time / u.duration;
-  let colorDrift = cycles * COLOR_DRIFT_RATE + COLOR_DRIFT_WOBBLE * sin(cycles * COLOR_DRIFT_FREQ);
-  let rotatedS = fract(s - colorDrift + 1.0);
-  let color = sampleGradient(rotatedS, u.colorCount);
+  // Gradient drift uses u.time so colours keep flowing even when head is
+  // locked to a stationary cursor.
+  const cycles = u.time / u.duration;
+  const colorDrift =
+    cycles * COLOR_DRIFT_RATE + COLOR_DRIFT_WOBBLE * std.sin(cycles * COLOR_DRIFT_FREQ);
+  const rotatedS = std.fract(s - colorDrift + 1);
+  const color = sampleGradient(rotatedS);
 
-  // Wide, feathered tangential sweep mimicking the original conic mask. SWEEP_SIGMA
-  // 0.22 gives a visible arc of ~44% of the perimeter with soft ramps on both sides.
-  let tailDist = fract(head - s + 1.0);
-  let symDist = min(tailDist, 1.0 - tailDist);
-  let tanFade = exp(-pow(symDist / SWEEP_SIGMA, 2.0));
+  // Wide feathered tangential sweep that rotates with head.
+  const tailDist = std.fract(u.head - s + 1);
+  const symDist = std.min(tailDist, 1 - tailDist);
+  const tanFade = std.exp(-std.pow(symDist / SWEEP_SIGMA, 2));
 
-  // Inside fade uses RADIAL distance from the rect's centre, normalised by halfInner —
-  // so its iso-contours are ellipses matching the rect's aspect ratio, NOT parallel
-  // offsets of the rounded rect's border. That eliminates the "hyperbolic rectangle"
-  // shadow that an SDF-based fade would draw inside the bright halo (an inset rounded
-  // rect ghost). For the outside halo we still use the SDF-based fade because the
-  // outer bloom genuinely follows the border's shape.
-  let safeHalf = max(halfInner, vec2<f32>(1.0));
-  let ellipticalDist = length(pix / safeHalf);  // 0 at centre, 1 at border midpoints
-  let innerFade = 1.0 - exp(-pow(ellipticalDist * INNER_FADE_K, 2.0));
+  // Inside fade: radial in elliptical coords (iso-contours are ellipses, not
+  // parallel offsets of the rect's border) so we don't draw a ghost rect.
+  const safeHalf = std.max(halfInner, d.vec2f(1));
+  const ellipticalDist = std.length(std.div(pix, safeHalf));
+  const innerFade = 1 - std.exp(-std.pow(ellipticalDist * INNER_FADE_K, 2));
 
-  // bloomRadius is already floored CPU-side via MIN_BLOOM_PX in resolveModeSizes.
-  let outwardReach = u.bloomRadius;
-  let outerDist = max(dist, 0.0);
-  let isInside = select(0.0, 1.0, dist <= 0.0);
-  let perpFade = innerFade * isInside
-               + exp(-pow(outerDist / outwardReach, 2.0)) * (1.0 - isInside);
+  const outwardReach = u.bloomRadius; // already floored CPU-side via MIN_BLOOM_PX.
+  const outerDist = std.max(dist, 0);
+  const isInside = std.select(d.f32(0), d.f32(1), dist <= 0);
+  const perpFade =
+    innerFade * isInside +
+    std.exp(-std.pow(outerDist / outwardReach, 2)) * (1 - isInside);
 
-  // Glass haze: soft interior tint scaled by innerGlow.
-  let glass = tanFade * perpFade * u.innerGlow * GLASS_GAIN;
+  const glass = tanFade * perpFade * u.innerGlow * GLASS_GAIN;
 
-  // On-border stroke (line mode only — strokeIntensity is 0 for aura). A sharper
-  // gaussian band centred on the perimeter, modulated by the same rotating tanFade so
-  // the line is a moving coloured beam tracing the border.
-  let strokeBand = max(u.strokeWidth * STROKE_BAND_FACTOR, MIN_STROKE_BAND);
-  let strokeFade = exp(-pow(abs(dist) / strokeBand, 2.0));
-  let stroke = strokeFade * tanFade * u.strokeIntensity;
+  const strokeBand = std.max(u.strokeWidth * STROKE_BAND_FACTOR, MIN_STROKE_BAND);
+  const strokeFade = std.exp(-std.pow(std.abs(dist) / strokeBand, 2));
+  const stroke = strokeFade * tanFade * u.strokeIntensity;
 
-  let intensity = clamp((glass + stroke) * u.brightness, 0.0, INTENSITY_CLAMP);
+  const intensity = std.clamp((glass + stroke) * u.brightness, 0, INTENSITY_CLAMP);
 
-  var rgb = color.rgb * intensity;
+  let rgb = std.mul(color.xyz, intensity);
   rgb = adjustSaturation(rgb, u.saturation);
-  let alpha = clamp(intensity * u.strength * color.a, 0.0, 1.0);
-  // Premultiplied alpha — pipeline color target uses premultiplied blending.
-  return vec4<f32>(rgb * alpha, alpha);
-}
-`;
+  const alpha = std.clamp(intensity * u.strength * color.w, 0, 1);
+  // Premultiplied alpha — pipeline target uses premultiplied blending.
+  return d.vec4f(std.mul(rgb, alpha), alpha);
+});
