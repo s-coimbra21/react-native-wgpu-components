@@ -51,15 +51,50 @@ fn sdRoundBox(p: vec2<f32>, b: vec2<f32>, r: f32) -> f32 {
 
 // Map a pixel position p (centered on the inner rect) to a smooth, cyclic
 // coordinate s in [0,1), starting from the top-center and increasing clockwise.
-// We use the angle from the rect's center — the same mapping CSS's conic-gradient
-// uses. An earlier arc-length variant produced visible 45-degree Voronoi seams at
-// each corner because the nearest-border projection switched discontinuously
-// across those diagonals; the angle-based version is continuous everywhere.
-fn perimeterCoord(p: vec2<f32>) -> f32 {
-  // With uv y growing downward: top is at angle -pi/2, right at 0, bottom at pi/2,
-  // left at +/-pi. Shift so top maps to 0, then divide by 2*pi.
+// We cast a ray from the rect's center at angle atan2(p.y,p.x), find where it hits
+// the rect's bounding box, and return the arc length of that hit point divided by
+// the full perimeter. This gives an EVEN distribution of the palette by perimeter
+// length (instead of by angle), so on long-aspect rects colors no longer pool on
+// the short edges. Smooth in angle everywhere — no Voronoi seams — because we
+// never project p onto the border, we project the ray.
+fn perimeterCoord(p: vec2<f32>, halfInner: vec2<f32>) -> f32 {
+  let W = max(halfInner.x, 1.0);
+  let H = max(halfInner.y, 1.0);
+
   let angle = atan2(p.y, p.x);
-  return fract((angle + 1.5707963) / 6.2831853 + 1.0);
+  let dir = vec2<f32>(cos(angle), sin(angle));
+  // Distance along the ray to each pair of bounding planes.
+  let safeAbsX = max(abs(dir.x), 0.0001);
+  let safeAbsY = max(abs(dir.y), 0.0001);
+  let tx = W / safeAbsX;
+  let ty = H / safeAbsY;
+  let t = min(tx, ty);
+  let hit = dir * t;  // intersection on the rect's bounding box
+
+  let onVertical = tx < ty;  // hit on x = +/-W (left or right edge)
+  let perim = 4.0 * (W + H);
+
+  // Arc length from top-center (0, -H) going clockwise around the rect.
+  var arc: f32 = 0.0;
+  if (onVertical) {
+    if (hit.x > 0.0) {
+      arc = W + (hit.y + H);                          // right edge
+    } else {
+      arc = 3.0 * W + 2.0 * H + (H - hit.y);          // left edge
+    }
+  } else {
+    if (hit.y < 0.0) {
+      if (hit.x >= 0.0) {
+        arc = hit.x;                                  // top, right half
+      } else {
+        arc = 3.0 * W + 4.0 * H + (hit.x + W);        // top, left half (wraps)
+      }
+    } else {
+      arc = W + 2.0 * H + (W - hit.x);                // bottom
+    }
+  }
+
+  return fract(arc / max(perim, 0.0001));
 }
 
 fn sampleGradient(s: f32, count: u32) -> vec4<f32> {
@@ -89,7 +124,7 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
   let halfInner = u.innerSize * 0.5;
 
   let dist = sdRoundBox(pix, halfInner, u.radius);
-  let s = perimeterCoord(pix);
+  let s = perimeterCoord(pix, halfInner);
 
   let safeDuration = max(u.duration, 0.0001);
   let head = fract(u.time / safeDuration);
