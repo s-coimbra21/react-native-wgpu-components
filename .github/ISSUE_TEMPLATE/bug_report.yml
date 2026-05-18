@@ -1,0 +1,61 @@
+name: Bug report
+description: Something doesn't render, crashes, or produces the wrong visual output.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the issue. If it's a visual bug, please attach a screenshot or short video.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal code that reproduces the issue, or a link to a repo / Expo Snack.
+      render: tsx
+      placeholder: |
+        <BorderBeam colors="colorful">
+          ...
+        </BorderBeam>
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform(s)
+      multiple: true
+      options:
+        - iOS
+        - Android
+        - Web (Chrome)
+        - Web (Safari)
+        - Web (Firefox)
+        - Web (other)
+    validations:
+      required: true
+
+  - type: input
+    id: package-version
+    attributes:
+      label: react-native-wgpu-components version
+      placeholder: e.g. 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: rn-version
+    attributes:
+      label: React Native / Expo version
+      placeholder: e.g. RN 0.81 / Expo 55
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else — console logs, GPU info, device model.

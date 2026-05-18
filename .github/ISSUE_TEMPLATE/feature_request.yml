@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest a new component, prop, or behavior.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the use case. "I want a glowing button border" is better than "Add a glow prop."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API or behavior
+      description: What would you like the public interface to look like? Rough sketch is fine.
+      render: tsx
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Other libraries, workarounds, or different API shapes you thought about.
