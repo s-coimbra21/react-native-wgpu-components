@@ -1,0 +1,83 @@
+---
+title: BorderBeam
+description: Animated GPU-rendered border glow.
+---
+
+`<BorderBeam>` renders an animated halo around its children using a single
+WGSL fragment shader. The shader composes a stroke, an inner glow, and an
+outer bloom in one pass; a per-frame `head` advances the bright sweep around
+the rect's perimeter.
+
+```tsx
+import { BorderBeam } from 'react-native-wgpu-components';
+
+<BorderBeam colors="colorful" borderRadius={16}>
+  <View>...</View>
+</BorderBeam>
+```
+
+## Props
+
+| Prop | Type | Default | Notes |
+|---|---|---|---|
+| `colors` | <code>PalettePreset \| ColorStop[]</code> | `'colorful'` | Named preset or custom stops. See [Palettes](/docs/palettes). |
+| `mode` | <code>'aura' \| 'line'</code> | `'aura'` | `aura` is a soft diffuse glow; `line` is a bright stroke tracing the border. |
+| `scale` | `number` | `1` | Multiplier on the effect's internal pixel sizes. Sizes auto-scale with the element's smaller half-dimension so the effect looks proportional across sizes; `scale` amplifies or attenuates. |
+| `borderRadius` | `number` | `16` | px. |
+| `innerGlow` | `number` | from mode | 0–1. |
+| `active` | `boolean` | `true` | Fades the effect in/out via Reanimated. |
+| `followCursor` | `boolean` | `false` | When hovering, the bright sweep tracks the cursor. Requires `react-native-gesture-handler`. On touch-only devices it falls back to the time-based auto-orbit. |
+| `duration` | `number` | `3` | Seconds per orbit. |
+| `strength` | `number` | `1` | 0–1 overall opacity multiplier. |
+| `brightness` | `number` | `1.3` | Stroke intensity multiplier. |
+| `saturation` | `number` | `1.2` | Color saturation multiplier. |
+| `style` | `StyleProp<ViewStyle>` | — | Applied to the children wrapper. |
+| `containerStyle` | `StyleProp<ViewStyle>` | — | Applied to the outer view. |
+
+## Modes
+
+```tsx
+<BorderBeam mode="aura" />   {/* soft, diffuse — good for cards & buttons */}
+<BorderBeam mode="line" />   {/* sharp comet trail — good for pills & inputs */}
+```
+
+`aura` favors interior haze + outer bloom and reads as a glow.
+`line` dominates with the border stroke and reads as a chasing beam.
+
+## Cursor tracking
+
+`followCursor` swaps the time-based head sweep for a cursor-following one.
+The handoff is smooth — when you lift the cursor, the sweep resumes from
+wherever the cursor last was, rather than teleporting to the time-based
+position.
+
+```tsx
+<BorderBeam followCursor>
+  <View>...</View>
+</BorderBeam>
+```
+
+The gradient itself still drifts independently while the cursor is locked,
+so the effect stays alive.
+
+## Animating `active`
+
+`active={false}` smoothly fades the effect out over 400ms. Use it as a focus
+indicator on inputs, a hover state on buttons, etc.
+
+```tsx
+const [focused, setFocused] = useState(false);
+
+<BorderBeam active={focused}>
+  <TextInput onFocus={...} onBlur={...} />
+</BorderBeam>
+```
+
+## What it does not do
+
+- No backdrop blur on the area inside the rect — the shader only writes
+  pixels in the halo band. If you want a blur, layer your own.
+- No shape other than rounded rect. Use `borderRadius={999}` for pills.
+- Does not currently animate `borderRadius`, `duration`, or `colors`
+  with a transition — changes are immediate. (Animating `active`,
+  `strength`, `brightness`, `saturation` IS smooth.)

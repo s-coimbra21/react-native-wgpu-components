@@ -1,0 +1,51 @@
+---
+title: Quick Start
+description: Render your first beam in under a minute.
+---
+
+After [installing](/docs/installation), wrap any view with `<BorderBeam>`:
+
+```tsx
+import { BorderBeam } from 'react-native-wgpu-components';
+import { View, Text } from 'react-native';
+
+export function Example() {
+  return (
+    <BorderBeam colors="colorful" borderRadius={16} duration={3}>
+      <View style={{ padding: 24, backgroundColor: '#1d1d1d', borderRadius: 16 }}>
+        <Text style={{ color: 'white' }}>Hello, beam.</Text>
+      </View>
+    </BorderBeam>
+  );
+}
+```
+
+That's it — `<BorderBeam>` measures its children, renders the effect on a GPU
+canvas sized to overlay them, and starts the animation loop.
+
+## Common tweaks
+
+```tsx
+// Drop the auto-animation in favor of a cursor-tracking sweep on hover
+<BorderBeam followCursor colors="ocean" borderRadius={16}>
+  ...
+</BorderBeam>
+
+// Switch to a sharp border line instead of the diffuse aura
+<BorderBeam mode="line" colors="sunset" borderRadius={999}>
+  ...
+</BorderBeam>
+
+// Use your own gradient
+<BorderBeam colors={['#ff3d00', '#ffd600', '#ff3d00']}>
+  ...
+</BorderBeam>
+
+// Pause it
+<BorderBeam active={false}>
+  ...
+</BorderBeam>
+```
+
+See [`<BorderBeam>`](/docs/border-beam) for the full prop list and
+[palettes](/docs/palettes) for the built-in gradient names.

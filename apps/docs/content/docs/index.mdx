@@ -1,0 +1,33 @@
+---
+title: Introduction
+description: GPU-accelerated UI components for React Native. iOS, Android, and Web through a single API.
+---
+
+`react-native-wgpu-components` is a small collection of UI components that run
+on the GPU, using a single WGSL shader pipeline that targets iOS, Android, and
+Web through one API.
+
+It's built on [react-native-wgpu](https://github.com/wcandillon/react-native-webgpu),
+[TypeGPU](https://docs.swmansion.com/TypeGPU/), and
+[Reanimated](https://docs.swmansion.com/react-native-reanimated/) v4.
+
+Today the package ships one component, `<BorderBeam>` — an animated border
+glow. More components welcome.
+
+## Why a GPU library?
+
+A few visual effects — animated borders, glows, gradients, fluid backgrounds —
+are expensive to do well with `View` + `Animated`. They want lots of pixels
+updated every frame, soft falloff, and gradient interpolation. A shader does
+that work in one pass; CPU layouts can't.
+
+Until recently you couldn't run a WGSL shader inside a React Native view.
+`react-native-wgpu` exposes a `<Canvas>` you can write to with the WebGPU API,
+and TypeGPU lets you author that shader in TypeScript instead of strings. This
+package wraps that machinery into drop-in components with a familiar prop API.
+
+## Get started
+
+- [Installation](/docs/installation) — install the package and configure Babel.
+- [Quick Start](/docs/quick-start) — render your first beam.
+- [`<BorderBeam>`](/docs/border-beam) — the full prop reference.

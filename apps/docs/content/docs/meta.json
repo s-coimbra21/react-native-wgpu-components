@@ -1,0 +1,13 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "installation",
+    "quick-start",
+    "---Components---",
+    "border-beam",
+    "---Reference---",
+    "palettes",
+    "platforms"
+  ]
+}

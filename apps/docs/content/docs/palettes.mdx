@@ -1,0 +1,49 @@
+---
+title: Palettes
+description: Built-in color palettes and how to use custom stops.
+---
+
+## Presets
+
+The `colors` prop accepts one of five preset names:
+
+| Preset | Stops |
+|---|---|
+| `colorful` | red → orange → yellow → green → blue → purple |
+| `mono` | dim white → bright white → dim white |
+| `ocean` | deep blue → cyan → teal |
+| `sunset` | magenta → orange → yellow |
+| `aurora` | magenta → blue → green |
+
+## Custom stops
+
+Pass an array of color stops to roll your own gradient:
+
+```tsx
+<BorderBeam colors={['#ff3d00', '#ffd600', '#ff3d00']} />
+```
+
+A stop can be either a CSS color string or an object with an explicit
+position in `[0, 1]`:
+
+```tsx
+type ColorStop = string | { color: string; position?: number };
+
+<BorderBeam
+  colors={[
+    { color: '#ff3d00', position: 0 },
+    { color: '#ffd600', position: 0.5 },
+    { color: '#ff3d00', position: 1 },
+  ]}
+/>
+```
+
+Up to 8 stops are supported (the shader's uniform array length). Position
+is optional — omitting it evenly distributes stops around the perimeter.
+
+## Gradient drift
+
+The gradient continuously rotates around the perimeter, decoupled from the
+brightness sweep. With a single solid color you'll still see the brightness
+chase, but the color won't appear to move; with multiple stops you'll see
+both effects.

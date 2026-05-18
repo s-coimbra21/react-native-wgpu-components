@@ -1,0 +1,38 @@
+---
+title: Platforms
+description: GPU backends, performance notes, and known caveats per platform.
+---
+
+## Support matrix
+
+| | Backend | Status |
+|---|---|---|
+| iOS | Metal (via WebGPU) | Stable |
+| Android | Vulkan (via WebGPU) | Stable |
+| Web | WebGPU | Chrome / Edge stable. Safari 18+ stable. Firefox behind a flag. |
+
+On platforms without WebGPU support, `<BorderBeam>` mounts a no-op canvas and
+logs a one-time warning. The children still render normally.
+
+## Performance notes
+
+- One canvas per `<BorderBeam>`. Many small canvases on a single screen are
+  fine — each one is cheap — but they're not free. For a feed-style list,
+  one `<BorderBeam>` wrapping the whole list is preferable to one per row.
+- The shader is invariant in cost per pixel; the bottleneck is canvas size.
+  `scale` directly multiplies the rendered area.
+- The render loop runs on the JS thread at frame cadence. On native, it can
+  optionally hop to the UI thread via `react-native-webgpu-worklets`.
+
+## Web specifics
+
+- The package compiles to a single ESM bundle. There's no separate web build.
+- Static export–friendly: nothing about the package requires a Node runtime
+  at request time.
+
+## Known caveats
+
+- No support for non-rectangular shapes (yet). `borderRadius={999}` works for
+  pills but arbitrary masks are out of scope.
+- Hot reload of the shader source requires re-mounting the canvas (route
+  navigation, or full reload).

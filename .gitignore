@@ -1,7 +1,7 @@
 node_modules/
 .expo/
 dist/
-lib/
+packages/*/lib/
 .DS_Store
 *.log
 .env
