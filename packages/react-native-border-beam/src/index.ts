@@ -2,6 +2,6 @@ export { BorderBeam } from './BorderBeam';
 export type {
   BorderBeamProps,
   ColorStop,
-  SizePreset,
+  Mode,
   PalettePreset,
 } from './types';

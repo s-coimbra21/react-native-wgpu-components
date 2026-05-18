@@ -94,8 +94,15 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
   let safeDuration = max(u.duration, 0.0001);
   let head = fract(u.time / safeDuration);
 
-  // Color: sample the static palette at the pixel's angular perimeter coord.
-  let color = sampleGradient(s, u.colorCount);
+  // Color: sample the palette at a rotated, slightly-wobbling phase so the gradient
+  // drifts around the rect over time independently of the brightness sweep. Without
+  // this drift the colors stay anchored to fixed angular positions and the effect
+  // looks statically tied to the rect's geometry. The drift rate is intentionally
+  // not a simple fraction of the head's rate so colors and head never realign.
+  let cycles = u.time / safeDuration;
+  let colorDrift = cycles * 0.45 + 0.07 * sin(cycles * 1.7);
+  let rotatedS = fract(s - colorDrift + 1.0);
+  let color = sampleGradient(rotatedS, u.colorCount);
 
   // Wide, feathered tangential sweep mimicking the original conic mask. Sigma 0.22
   // gives a visible arc of ~44% of the perimeter with soft ramps on both sides.

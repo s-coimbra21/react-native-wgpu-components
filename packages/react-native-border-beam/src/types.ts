@@ -3,16 +3,21 @@ import type { ReactNode } from 'react';
 
 export type ColorStop = string | { color: string; position?: number };
 
-export type SizePreset = 'sm' | 'md' | 'line';
+export type Mode = 'aura' | 'line';
 
 export type PalettePreset = 'colorful' | 'mono' | 'ocean' | 'sunset';
 
 export interface BorderBeamProps {
   colors?: PalettePreset | ColorStop[];
-  size?: SizePreset;
+  /** Visual character of the effect. `aura` (default) is a soft diffuse glow; `line`
+   * is a bright stroke that traces the border. */
+  mode?: Mode;
+  /** Multiplier on the effect's internal pixel sizes (stroke width, bloom radius).
+   * The unscaled sizes auto-derive from the element's smaller half-dimension, so the
+   * effect looks proportional across element sizes; use scale to amplify or attenuate.
+   * Default 1. */
+  scale?: number;
   borderRadius?: number;
-  strokeWidth?: number;
-  bloomRadius?: number;
   innerGlow?: number;
 
   active?: boolean;
@@ -27,25 +32,12 @@ export interface BorderBeamProps {
   testID?: string;
 }
 
-export interface SizeDefaults {
-  strokeWidth: number;
-  bloomRadius: number;
+/** Per-mode shape parameters. Stroke and bloom sizes are stored as factors of the
+ * element's smaller half-dimension so the effect scales naturally with element size;
+ * the absolute pixel values are resolved in `useBeamRenderer` once layout is known. */
+export interface ModeDefaults {
+  strokeWidthFactor: number;
+  bloomRadiusFactor: number;
   innerGlow: number;
-  // Per-preset intensity for the on-border stroke band. `line` uses a high value so
-  // its dominant visual is a glowing line tracing the border; `sm`/`md` use 0 to keep
-  // the soft interior haze unchanged.
   strokeIntensity: number;
-}
-
-export interface ResolvedBeamProps {
-  colorsRgba: Float32Array;
-  colorCount: number;
-  borderRadius: number;
-  strokeWidth: number;
-  bloomRadius: number;
-  innerGlow: number;
-  duration: number;
-  strength: number;
-  brightness: number;
-  saturation: number;
 }

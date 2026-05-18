@@ -11,7 +11,7 @@ export default function CardScreen() {
         colors={['#ff3d00', '#ffd600', '#ff3d00']}
         borderRadius={24}
         duration={3}
-        size="md"
+        mode="aura"
       >
         <View style={[styles.card, { backgroundColor: '#181820' }]}>
           <Text style={styles.cardTitle}>Sunburst</Text>
@@ -29,7 +29,7 @@ export default function CardScreen() {
         borderRadius={20}
         duration={2}
         brightness={1.6}
-        size="md"
+        mode="aura"
         containerStyle={{ marginTop: 24 }}
       >
         <View style={[styles.card, { backgroundColor: '#101820' }]}>

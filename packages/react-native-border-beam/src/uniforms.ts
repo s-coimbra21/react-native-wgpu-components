@@ -1,4 +1,4 @@
-import type { SizeDefaults, SizePreset } from './types';
+import type { Mode, ModeDefaults } from './types';
 
 // Layout in floats (16-byte aligned blocks for std140-ish):
 //   [0..1]  resolution        (vec2f)
@@ -19,11 +19,23 @@ import type { SizeDefaults, SizePreset } from './types';
 export const UNIFORM_FLOAT_COUNT = 48;
 export const UNIFORM_BYTE_SIZE = UNIFORM_FLOAT_COUNT * 4; // 192 bytes
 
-export const SIZE_DEFAULTS: Record<SizePreset, SizeDefaults> = {
-  sm: { strokeWidth: 1, bloomRadius: 12, innerGlow: 0.4, strokeIntensity: 0 },
-  md: { strokeWidth: 2, bloomRadius: 20, innerGlow: 0.6, strokeIntensity: 0 },
-  // `line` swaps the diffuse interior haze for a bright stroke tracing the border.
-  line: { strokeWidth: 1, bloomRadius: 6, innerGlow: 0.05, strokeIntensity: 1.4 },
+export const MODE_DEFAULTS: Record<Mode, ModeDefaults> = {
+  // Diffuse glow. No stroke contribution; the visible effect is the colored interior
+  // haze + outer bloom. Bloom radius is ~18% of the element's smaller half-dimension.
+  aura: {
+    strokeWidthFactor: 0,
+    bloomRadiusFactor: 0.18,
+    innerGlow: 0.5,
+    strokeIntensity: 0,
+  },
+  // Comet beam tracing the border. Dominated by a sharp stroke; interior haze is
+  // kept low so the border line is the visual emphasis.
+  line: {
+    strokeWidthFactor: 0.025,
+    bloomRadiusFactor: 0.10,
+    innerGlow: 0.05,
+    strokeIntensity: 1.4,
+  },
 };
 
 export interface UniformWriteInput {
@@ -77,4 +89,20 @@ export function writeUniformArray(
   for (let i = 0; i < stops; i++) {
     floats[16 + i] = input.colorsRgba[i] ?? 0;
   }
+}
+
+/** Helper used by both the renderer and the component: derive the absolute pixel
+ * values (stroke width, bloom radius) for a given mode + scale + measured content
+ * size. Both sizes scale with the element's smaller half-dimension so the effect
+ * looks proportional regardless of element size. */
+export function resolveModeSizes(
+  defaults: ModeDefaults,
+  contentSize: { width: number; height: number },
+  scale: number,
+): { strokeWidth: number; bloomRadius: number } {
+  const minHalfDim = Math.min(contentSize.width, contentSize.height) / 2;
+  return {
+    strokeWidth: defaults.strokeWidthFactor * minHalfDim * scale,
+    bloomRadius: defaults.bloomRadiusFactor * minHalfDim * scale,
+  };
 }

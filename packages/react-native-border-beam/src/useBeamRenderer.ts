@@ -10,12 +10,13 @@ import {
 import { resolveColors } from './palettes';
 import { BEAM_SHADER_WGSL } from './shader';
 import {
-  SIZE_DEFAULTS,
+  MODE_DEFAULTS,
   UNIFORM_BYTE_SIZE,
   createUniformArray,
+  resolveModeSizes,
   writeUniformArray,
 } from './uniforms';
-import type { BorderBeamProps } from './types';
+import type { BorderBeamProps, ModeDefaults } from './types';
 import { enableWorkletsGPU } from './enableWorklets';
 
 enableWorkletsGPU();
@@ -32,29 +33,27 @@ interface ResolvedProps {
   brightness: number;
   saturation: number;
   borderRadius: number;
-  strokeWidth: number;
-  bloomRadius: number;
   innerGlow: number;
-  strokeIntensity: number;
+  scale: number;
+  modeDefaults: ModeDefaults;
   colorsRgba: Float32Array;
   colorCount: number;
 }
 
 function resolveProps(props: BorderBeamProps): ResolvedProps {
-  const size = props.size ?? 'md';
-  const defaults = SIZE_DEFAULTS[size];
+  const mode = props.mode ?? 'aura';
+  const defaults = MODE_DEFAULTS[mode];
   const { rgba, count } = resolveColors(props.colors);
   return {
     active: props.active ?? true,
-    duration: props.duration ?? 2,
+    duration: props.duration ?? 3,
     strength: props.strength ?? 1,
     brightness: props.brightness ?? 1.3,
     saturation: props.saturation ?? 1.2,
     borderRadius: props.borderRadius ?? 16,
-    strokeWidth: props.strokeWidth ?? defaults.strokeWidth,
-    bloomRadius: props.bloomRadius ?? defaults.bloomRadius,
     innerGlow: props.innerGlow ?? defaults.innerGlow,
-    strokeIntensity: defaults.strokeIntensity,
+    scale: props.scale ?? 1,
+    modeDefaults: defaults,
     colorsRgba: rgba,
     colorCount: count,
   };
@@ -72,7 +71,8 @@ export function useBeamRenderer(
     () => resolveProps(props),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      props.size,
+      props.mode,
+      props.scale,
       props.colors,
       props.active,
       props.duration,
@@ -80,8 +80,6 @@ export function useBeamRenderer(
       props.brightness,
       props.saturation,
       props.borderRadius,
-      props.strokeWidth,
-      props.bloomRadius,
       props.innerGlow,
     ],
   );
@@ -232,14 +230,23 @@ export function useBeamRenderer(
         const brightness = readSV(live.sv.brightness);
         const saturation = readSV(live.sv.saturation);
 
+        // Resolve absolute pixel sizes from the mode's factor × element size × scale.
+        // Doing this per-frame keeps the effect proportional even as the wrapped
+        // content's layout changes (e.g. a focused input growing).
+        const sizes = resolveModeSizes(
+          live.resolved.modeDefaults,
+          live.contentSize,
+          live.resolved.scale,
+        );
+
         writeUniformArray(floats, uints, {
           resolutionW: resW,
           resolutionH: resH,
           innerW,
           innerH,
           radius: live.resolved.borderRadius * dpr,
-          strokeWidth: live.resolved.strokeWidth * dpr,
-          bloomRadius: live.resolved.bloomRadius * dpr,
+          strokeWidth: sizes.strokeWidth * dpr,
+          bloomRadius: sizes.bloomRadius * dpr,
           innerGlow: live.resolved.innerGlow,
           time: now - startTime,
           duration: Math.max(live.resolved.duration, 0.05),
@@ -247,7 +254,7 @@ export function useBeamRenderer(
           brightness,
           saturation,
           colorCount: live.resolved.colorCount,
-          strokeIntensity: live.resolved.strokeIntensity,
+          strokeIntensity: live.resolved.modeDefaults.strokeIntensity,
           colorsRgba: live.resolved.colorsRgba,
         });
 

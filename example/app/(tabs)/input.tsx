@@ -19,7 +19,7 @@ export default function InputScreen() {
       </Text>
 
       <Text style={styles.label}>Email</Text>
-      <BorderBeam colors="colorful" active={emailFocused} borderRadius={10} size="sm">
+      <BorderBeam colors="colorful" active={emailFocused} borderRadius={10} mode="aura">
         <TextInput
           style={styles.input}
           placeholder="you@example.com"
@@ -34,7 +34,7 @@ export default function InputScreen() {
       </BorderBeam>
 
       <Text style={styles.label}>Password</Text>
-      <BorderBeam colors="ocean" active={pwFocused} borderRadius={10} size="sm">
+      <BorderBeam colors="ocean" active={pwFocused} borderRadius={10} mode="aura">
         <TextInput
           style={styles.input}
           placeholder="••••••••"
@@ -48,7 +48,7 @@ export default function InputScreen() {
       </BorderBeam>
 
       <Text style={styles.label}>Search</Text>
-      <BorderBeam colors="mono" active={searchFocused} borderRadius={999} size="line">
+      <BorderBeam colors="mono" active={searchFocused} borderRadius={999} mode="line">
         <View style={styles.searchContainer}>
           <TextInput
             style={styles.searchInput}

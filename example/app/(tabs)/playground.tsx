@@ -7,16 +7,17 @@ import {
   Text,
   View,
 } from 'react-native';
-import { BorderBeam, type PalettePreset, type SizePreset } from 'react-native-border-beam';
+import { BorderBeam, type Mode, type PalettePreset } from 'react-native-border-beam';
 
 const PALETTES: PalettePreset[] = ['colorful', 'mono', 'ocean', 'sunset'];
-const SIZES: SizePreset[] = ['sm', 'md', 'line'];
+const MODES: Mode[] = ['aura', 'line'];
 
 export default function PlaygroundScreen() {
   const [palette, setPalette] = useState<PalettePreset>('colorful');
-  const [size, setSize] = useState<SizePreset>('md');
+  const [mode, setMode] = useState<Mode>('aura');
+  const [scale, setScale] = useState(1);
   const [active, setActive] = useState(true);
-  const [duration, setDuration] = useState(2);
+  const [duration, setDuration] = useState(3);
   const [strength, setStrength] = useState(1);
   const [brightness, setBrightness] = useState(1.3);
   const [saturation, setSaturation] = useState(1.2);
@@ -30,7 +31,8 @@ export default function PlaygroundScreen() {
       <View style={styles.previewWrap}>
         <BorderBeam
           colors={palette}
-          size={size}
+          mode={mode}
+          scale={scale}
           active={active}
           duration={duration}
           strength={strength}
@@ -41,7 +43,7 @@ export default function PlaygroundScreen() {
           <View style={[styles.preview, { borderRadius }]}>
             <Text style={styles.previewTitle}>Preview</Text>
             <Text style={styles.previewSubtitle}>
-              {palette} · {size} · {active ? 'active' : 'inactive'}
+              {palette} · {mode} · {scale.toFixed(2)}× · {active ? 'active' : 'inactive'}
             </Text>
           </View>
         </BorderBeam>
@@ -55,8 +57,8 @@ export default function PlaygroundScreen() {
         />
       </Group>
 
-      <Group title="Size preset">
-        <SegmentedControl options={SIZES} value={size} onChange={setSize} />
+      <Group title="Mode">
+        <SegmentedControl options={MODES} value={mode} onChange={setMode} />
       </Group>
 
       <Group title="Active">
@@ -67,6 +69,7 @@ export default function PlaygroundScreen() {
         />
       </Group>
 
+      <Stepper label="Scale" value={scale} min={0.25} max={3} step={0.25} onChange={setScale} />
       <Stepper label="Duration (s)" value={duration} min={0.2} max={6} step={0.2} onChange={setDuration} />
       <Stepper label="Strength" value={strength} min={0} max={1} step={0.1} onChange={setStrength} />
       <Stepper label="Brightness" value={brightness} min={0.4} max={3} step={0.1} onChange={setBrightness} />

@@ -1,46 +1,55 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BorderBeam } from 'react-native-border-beam';
 
+type Mode = 'aura' | 'line';
+type Palette = 'colorful' | 'mono' | 'ocean' | 'sunset';
+
 export default function ButtonsScreen() {
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       <Text style={styles.h1}>Buttons</Text>
-      <Text style={styles.p}>Every named palette × every size preset.</Text>
+      <Text style={styles.p}>Each palette in both modes. The bottom row shows the scale knob.</Text>
 
       <Section title="Palette: colorful">
         <Row>
-          <BeamButton size="sm" colors="colorful" label="Small" />
-          <BeamButton size="md" colors="colorful" label="Medium" />
-          <BeamButton size="line" colors="colorful" label="Line" />
+          <BeamButton mode="aura" colors="colorful" label="Aura" />
+          <BeamButton mode="line" colors="colorful" label="Line" />
         </Row>
       </Section>
 
       <Section title="Palette: mono">
         <Row>
-          <BeamButton size="sm" colors="mono" label="Small" />
-          <BeamButton size="md" colors="mono" label="Medium" />
-          <BeamButton size="line" colors="mono" label="Line" />
+          <BeamButton mode="aura" colors="mono" label="Aura" />
+          <BeamButton mode="line" colors="mono" label="Line" />
         </Row>
       </Section>
 
       <Section title="Palette: ocean">
         <Row>
-          <BeamButton size="md" colors="ocean" label="Submit" />
-          <BeamButton size="md" colors="ocean" label="Continue" />
+          <BeamButton mode="aura" colors="ocean" label="Submit" />
+          <BeamButton mode="line" colors="ocean" label="Continue" />
         </Row>
       </Section>
 
       <Section title="Palette: sunset">
         <Row>
-          <BeamButton size="md" colors="sunset" label="Sunset" />
-          <BeamButton size="md" colors="sunset" label="Glow" />
+          <BeamButton mode="aura" colors="sunset" label="Sunset" />
+          <BeamButton mode="line" colors="sunset" label="Glow" />
+        </Row>
+      </Section>
+
+      <Section title="Scale (same mode, same colors)">
+        <Row>
+          <BeamButton mode="aura" colors="colorful" label="0.5×" scale={0.5} />
+          <BeamButton mode="aura" colors="colorful" label="1×" />
+          <BeamButton mode="aura" colors="colorful" label="2×" scale={2} />
         </Row>
       </Section>
 
       <Section title="active={false} (disabled)">
         <Row>
-          <BeamButton size="md" colors="colorful" label="Disabled" active={false} />
-          <BeamButton size="md" colors="ocean" label="Inactive" active={false} />
+          <BeamButton colors="colorful" label="Disabled" active={false} />
+          <BeamButton colors="ocean" label="Inactive" active={false} />
         </Row>
       </Section>
     </ScrollView>
@@ -62,17 +71,19 @@ function Row({ children }: { children: React.ReactNode }) {
 
 function BeamButton({
   label,
-  size,
+  mode,
   colors,
   active,
+  scale,
 }: {
   label: string;
-  size?: 'sm' | 'md' | 'line';
-  colors?: 'colorful' | 'mono' | 'ocean' | 'sunset';
+  mode?: Mode;
+  colors?: Palette;
   active?: boolean;
+  scale?: number;
 }) {
   return (
-    <BorderBeam size={size} colors={colors} active={active} borderRadius={12}>
+    <BorderBeam mode={mode} colors={colors} active={active} scale={scale} borderRadius={12}>
       <View style={styles.button}>
         <Text style={styles.buttonText}>{label}</Text>
       </View>

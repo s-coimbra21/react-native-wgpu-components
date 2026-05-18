@@ -7,7 +7,7 @@ Rendered via [`react-native-wgpu`](https://github.com/wcandillon/react-native-we
 ```tsx
 import { BorderBeam } from 'react-native-border-beam';
 
-<BorderBeam colors="colorful" borderRadius={16} duration={2}>
+<BorderBeam colors="colorful" borderRadius={16} duration={3}>
   <View style={{ padding: 24, backgroundColor: '#1d1d1d', borderRadius: 16 }}>
     <Text style={{ color: 'white' }}>Hello, beam.</Text>
   </View>
