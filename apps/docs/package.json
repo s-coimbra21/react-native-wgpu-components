@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "start": "next start",
     "postinstall": "fumadocs-mdx",
     "typecheck": "tsc --noEmit"
@@ -15,16 +15,31 @@
     "fumadocs-ui": "^16.8.11",
     "next": "^16.2.6",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-native": "0.85.3",
+    "react-native-gesture-handler": "~2.31.2",
+    "react-native-reanimated": "^4.3.1",
+    "react-native-web": "~0.21.2",
+    "react-native-wgpu": "^0.5.11",
+    "react-native-wgpu-components": "workspace:*",
+    "react-native-worklets": "^0.8.3",
+    "typegpu": "^0.11.4"
   },
   "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@babel/preset-env": "^7.25.0",
+    "@babel/preset-react": "^7.25.0",
+    "@babel/preset-typescript": "^7.25.0",
+    "babel-loader": "^9.2.1",
     "@types/mdx": "^2.0.13",
     "@types/node": "^22.13.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "@webgpu/types": "^0.1.70",
     "tailwindcss": "^4.0.0",
     "@tailwindcss/postcss": "^4.0.0",
     "postcss": "^8.5.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "unplugin-typegpu": "^0.11.3"
   }
 }

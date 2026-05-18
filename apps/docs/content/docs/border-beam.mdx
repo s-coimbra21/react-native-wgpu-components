@@ -3,18 +3,30 @@ title: BorderBeam
 description: Animated GPU-rendered border glow.
 ---
 
+import { ComponentPreview } from '@/components/component-preview';
+import {
+  BorderBeamBasic,
+  BorderBeamModes,
+  BorderBeamFollowCursor,
+} from '@/components/previews';
+
 `<BorderBeam>` renders an animated halo around its children using a single
 WGSL fragment shader. The shader composes a stroke, an inner glow, and an
 outer bloom in one pass; a per-frame `head` advances the bright sweep around
 the rect's perimeter.
 
-```tsx
-import { BorderBeam } from 'react-native-wgpu-components';
+<ComponentPreview
+  preview={<BorderBeamBasic />}
+  code={`import { BorderBeam } from 'react-native-wgpu-components';
+import { View, Text } from 'react-native';
 
-<BorderBeam colors="colorful" borderRadius={16}>
-  <View>...</View>
-</BorderBeam>
-```
+<BorderBeam colors="colorful" borderRadius={16} duration={3}>
+  <View style={{ padding: 24, backgroundColor: '#1d1d1d', borderRadius: 16 }}>
+    <Text style={{ color: 'white' }}>Hello, beam.</Text>
+  </View>
+</BorderBeam>`}
+  dark
+/>
 
 ## Props
 
@@ -36,29 +48,31 @@ import { BorderBeam } from 'react-native-wgpu-components';
 
 ## Modes
 
-```tsx
-<BorderBeam mode="aura" />   {/* soft, diffuse — good for cards & buttons */}
-<BorderBeam mode="line" />   {/* sharp comet trail — good for pills & inputs */}
-```
-
 `aura` favors interior haze + outer bloom and reads as a glow.
 `line` dominates with the border stroke and reads as a chasing beam.
+
+<ComponentPreview
+  preview={<BorderBeamModes />}
+  code={`<BorderBeam mode="aura" colors="colorful" />
+<BorderBeam mode="line" colors="colorful" />`}
+  dark
+/>
 
 ## Cursor tracking
 
 `followCursor` swaps the time-based head sweep for a cursor-following one.
 The handoff is smooth — when you lift the cursor, the sweep resumes from
 wherever the cursor last was, rather than teleporting to the time-based
-position.
+position. The gradient itself keeps drifting independently so the effect
+stays alive.
 
-```tsx
-<BorderBeam followCursor>
+<ComponentPreview
+  preview={<BorderBeamFollowCursor />}
+  code={`<BorderBeam followCursor colors="ocean" borderRadius={16}>
   <View>...</View>
-</BorderBeam>
-```
-
-The gradient itself still drifts independently while the cursor is locked,
-so the effect stays alive.
+</BorderBeam>`}
+  dark
+/>
 
 ## Animating `active`
 
