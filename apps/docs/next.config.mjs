@@ -32,6 +32,11 @@ const config = {
   ],
 
   webpack: (cfg, { webpack }) => {
+    // Workspace dev: resolve the package to its TypeScript source so the
+    // babel-loader rule below can run unplugin-typegpu on it. npm consumers
+    // pull from lib/ (which still contains the `'use gpu'` directives that
+    // their own babel plugin will transform).
+    const packageSrcDir = resolve(__dirname, '../../packages/react-native-wgpu-components/src');
     // React Native global. Metro defines it automatically; webpack doesn't.
     // Reanimated checks `__DEV__` at module init and throws without it.
     cfg.plugins.push(
@@ -45,6 +50,7 @@ const config = {
       // Native-only module. enableWorklets.ts short-circuits on web before the
       // require runs, but webpack does static resolution so we have to stub it.
       'react-native-webgpu-worklets': false,
+      'react-native-wgpu-components$': packageSrcDir,
     };
     cfg.resolve.extensions = [
       '.web.tsx',
@@ -58,10 +64,9 @@ const config = {
     // source. Everything else stays on Next's SWC pipeline so we don't disturb
     // fumadocs's pre-bundled ESM. The TypeGPU plugin is what turns `'use gpu'`
     // function bodies inside shader.ts into real WGSL at build time.
-    const packageSrc = resolve(__dirname, '../../packages/react-native-wgpu-components/src');
     cfg.module.rules.unshift({
       test: /\.(t|j)sx?$/,
-      include: [packageSrc],
+      include: [packageSrcDir],
       use: {
         loader: 'babel-loader',
         options: {

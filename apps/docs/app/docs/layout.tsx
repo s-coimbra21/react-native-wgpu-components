@@ -1,6 +1,6 @@
 import { source } from '@/lib/source';
 import { DocsLayout } from 'fumadocs-ui/layouts/docs';
-import { Github } from 'lucide-react';
+import { GithubIcon } from '@/components/icons/github';
 import type { ReactNode } from 'react';
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -13,7 +13,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       }}
       links={[
         {
-          icon: <Github />,
+          icon: <GithubIcon />,
           text: 'GitHub',
           url: 'https://github.com/s-coimbra21/react-native-wgpu-components',
           external: true,

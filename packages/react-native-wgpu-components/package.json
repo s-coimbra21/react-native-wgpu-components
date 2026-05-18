@@ -3,15 +3,16 @@
   "version": "0.1.0",
   "description": "GPU-accelerated UI components for React Native (iOS, Android, Web). Built on react-native-wgpu + TypeGPU + Reanimated.",
   "license": "MIT",
-  "main": "./src/index.ts",
+  "main": "./lib/module/index.js",
+  "module": "./lib/module/index.js",
   "react-native": "./src/index.ts",
   "source": "./src/index.ts",
-  "module": "./lib/module/index.js",
-  "types": "./src/index.ts",
+  "types": "./lib/typescript/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./lib/typescript/index.d.ts",
+      "react-native": "./src/index.ts",
+      "default": "./lib/module/index.js"
     }
   },
   "files": [
