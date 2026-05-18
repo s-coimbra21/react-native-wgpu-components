@@ -4,11 +4,13 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: '#0b0b0f' },
-        headerTitleStyle: { color: '#fff' },
+        headerShown: false,
+        tabBarShowLabel: true,
         tabBarStyle: { backgroundColor: '#0b0b0f', borderTopColor: '#1d1d22' },
         tabBarActiveTintColor: '#ffd600',
         tabBarInactiveTintColor: '#888',
+        tabBarIcon: () => null,
+        tabBarItemStyle: { paddingTop: 6 },
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Buttons' }} />
