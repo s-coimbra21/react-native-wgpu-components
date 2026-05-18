@@ -42,7 +42,7 @@ export default function CardScreen() {
       </BorderBeam>
 
       <BorderBeam
-        colors={['#d500f9', '#00b0ff', '#1de9b6']}
+        colors="aurora"
         borderRadius={28}
         duration={1.6}
         strength={0.9}

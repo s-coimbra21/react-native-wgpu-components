@@ -5,7 +5,7 @@ export type ColorStop = string | { color: string; position?: number };
 
 export type Mode = 'aura' | 'line';
 
-export type PalettePreset = 'colorful' | 'mono' | 'ocean' | 'sunset';
+export type PalettePreset = 'colorful' | 'mono' | 'ocean' | 'sunset' | 'aurora';
 
 export interface BorderBeamProps {
   colors?: PalettePreset | ColorStop[];

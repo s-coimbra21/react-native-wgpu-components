@@ -39,7 +39,7 @@ export function Example() {
 
 | Prop | Type | Default | Notes |
 |---|---|---|---|
-| `colors` | `'colorful' \| 'mono' \| 'ocean' \| 'sunset' \| ColorStop[]` | `'colorful'` | Named preset or custom stops. `ColorStop = string \| { color: string; position?: number }`. |
+| `colors` | `'colorful' \| 'mono' \| 'ocean' \| 'sunset' \| 'aurora' \| ColorStop[]` | `'colorful'` | Named preset or custom stops. `ColorStop = string \| { color: string; position?: number }`. |
 | `mode` | `'aura' \| 'line'` | `'aura'` | Visual character. `aura` is a soft diffuse glow; `line` is a bright stroke tracing the border. |
 | `scale` | `number` | `1` | Multiplier on the effect's internal pixel sizes. Default sizes scale with the element's smaller half-dimension, so the effect looks proportional across element sizes; use `scale` to amplify or attenuate. |
 | `borderRadius` | `number` | `16` | px. |

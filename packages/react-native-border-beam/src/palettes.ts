@@ -5,13 +5,18 @@ const PRESETS: Record<PalettePreset, string[]> = {
   mono: ['#ffffff', 'rgba(255,255,255,0.2)', '#ffffff'],
   ocean: ['#00b0ff', '#1de9b6', '#00b0ff'],
   sunset: ['#ff3d00', '#ffab00', '#ff3d00'],
+  aurora: ['#d500f9', '#00b0ff', '#1de9b6'],
 };
 
 const MAX_STOPS = 8;
 
 export function isPalettePreset(value: unknown): value is PalettePreset {
   return (
-    value === 'colorful' || value === 'mono' || value === 'ocean' || value === 'sunset'
+    value === 'colorful' ||
+    value === 'mono' ||
+    value === 'ocean' ||
+    value === 'sunset' ||
+    value === 'aurora'
   );
 }
 
