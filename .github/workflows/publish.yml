@@ -1,0 +1,53 @@
+name: Publish package to npm
+
+# Trigger on a GitHub Release being published (recommended), or on a v* tag
+# push (in case the release is drafted via gh CLI or external tooling), or
+# manually via the Actions UI.
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Only one publish at a time; if a duplicate trigger lands, finish the first.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # for npm provenance
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Build package
+        run: pnpm --filter react-native-wgpu-components build
+
+      - name: Publish to npm
+        # `pnpm publish` honours the `publishConfig` overrides in the package's
+        # package.json, so npm consumers receive the lib/ paths while the
+        # workspace stays on src/. `--access public` is required because the
+        # package is unscoped on a free npm account.
+        working-directory: packages/react-native-wgpu-components
+        run: pnpm publish --access public --no-git-checks --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
