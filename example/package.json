@@ -1,5 +1,5 @@
 {
-  "name": "border-beam-example",
+  "name": "wgpu-components-example",
   "version": "0.0.0",
   "private": true,
   "main": "expo-router/entry",
@@ -21,7 +21,7 @@
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "react-native": "0.85.3",
-    "react-native-border-beam": "workspace:*",
+    "react-native-wgpu-components": "workspace:*",
     "react-native-gesture-handler": "~2.31.2",
     "react-native-reanimated": "^4.3.1",
     "react-native-safe-area-context": "~5.7.0",

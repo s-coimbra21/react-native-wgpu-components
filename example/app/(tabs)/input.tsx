@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { BorderBeam } from 'react-native-border-beam';
+import { BorderBeam } from 'react-native-wgpu-components';
 
 export default function InputScreen() {
   const [emailFocused, setEmailFocused] = useState(false);

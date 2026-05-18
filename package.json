@@ -1,16 +1,22 @@
 {
-  "name": "react-native-border-beam-workspace",
+  "name": "react-native-wgpu-components-workspace",
   "private": true,
   "version": "0.0.0",
-  "description": "Monorepo for react-native-border-beam: a GPU-accelerated animated border-glow component for React Native (iOS, Android, Web).",
+  "description": "Monorepo for react-native-wgpu-components: GPU-accelerated UI components for React Native (iOS, Android, Web).",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/s-coimbra21/react-native-wgpu-components.git"
+  },
   "scripts": {
-    "build": "pnpm --filter react-native-border-beam build",
+    "build": "pnpm --filter react-native-wgpu-components build",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
-    "example": "pnpm --filter border-beam-example start",
-    "ios": "pnpm --filter border-beam-example ios",
-    "android": "pnpm --filter border-beam-example android",
-    "web": "pnpm --filter border-beam-example web"
+    "example": "pnpm --filter wgpu-components-example start",
+    "ios": "pnpm --filter wgpu-components-example ios",
+    "android": "pnpm --filter wgpu-components-example android",
+    "web": "pnpm --filter wgpu-components-example web",
+    "docs:dev": "pnpm --filter wgpu-components-docs dev",
+    "docs:build": "pnpm --filter wgpu-components-docs build"
   },
   "devDependencies": {
     "typescript": "^5.6.0"

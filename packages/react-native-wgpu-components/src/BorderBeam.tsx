@@ -101,7 +101,7 @@ function HoverTracker({ contentSize, hoverWeight, cursorX, cursorY, children }: 
     } catch {
       if (typeof console !== 'undefined' && console.warn) {
         console.warn(
-          '[react-native-border-beam] followCursor requires react-native-gesture-handler. Install it to enable hover tracking.',
+          '[react-native-wgpu-components] followCursor requires react-native-gesture-handler. Install it to enable hover tracking.',
         );
       }
       return null;

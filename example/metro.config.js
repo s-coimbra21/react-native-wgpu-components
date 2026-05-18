@@ -17,9 +17,9 @@ config.resolver.disableHierarchicalLookup = true;
 
 // Resolve the workspace package to its source so the example app picks up live changes.
 config.resolver.extraNodeModules = {
-  'react-native-border-beam': path.resolve(
+  'react-native-wgpu-components': path.resolve(
     workspaceRoot,
-    'packages/react-native-border-beam',
+    'packages/react-native-wgpu-components',
   ),
 };
 

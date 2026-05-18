@@ -1,5 +1,5 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { BorderBeam } from 'react-native-border-beam';
+import { BorderBeam } from 'react-native-wgpu-components';
 
 type Mode = 'aura' | 'line';
 type Palette = 'colorful' | 'mono' | 'ocean' | 'sunset';

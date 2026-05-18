@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { BorderBeam, type Mode, type PalettePreset } from 'react-native-border-beam';
+import { BorderBeam, type Mode, type PalettePreset } from 'react-native-wgpu-components';
 
 const PALETTES: PalettePreset[] = ['colorful', 'mono', 'ocean', 'sunset'];
 const MODES: Mode[] = ['aura', 'line'];

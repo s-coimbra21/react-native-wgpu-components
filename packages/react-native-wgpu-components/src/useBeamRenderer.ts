@@ -105,7 +105,7 @@ export function useBeamRenderer(
   useEffect(() => {
     if (!surface) return;
     if (typeof navigator === 'undefined' || !navigator.gpu) {
-      console.warn('[react-native-border-beam] WebGPU not available in this environment.');
+      console.warn('[react-native-wgpu-components] WebGPU not available in this environment.');
       return;
     }
 
@@ -115,7 +115,7 @@ export function useBeamRenderer(
     (async () => {
       const adapter = await navigator.gpu.requestAdapter();
       if (!adapter) {
-        console.warn('[react-native-border-beam] No GPU adapter available.');
+        console.warn('[react-native-wgpu-components] No GPU adapter available.');
         return;
       }
       if (cancelled) return;
@@ -129,7 +129,7 @@ export function useBeamRenderer(
       if (!canvas) return;
       const context = canvas.getContext('webgpu');
       if (!context) {
-        console.warn('[react-native-border-beam] WebGPU canvas context unavailable.');
+        console.warn('[react-native-wgpu-components] WebGPU canvas context unavailable.');
         return;
       }
 

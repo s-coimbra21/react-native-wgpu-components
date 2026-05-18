@@ -1,17 +1,17 @@
 {
-  "name": "react-native-border-beam",
+  "name": "react-native-wgpu-components",
   "version": "0.1.0",
-  "description": "GPU-accelerated animated border-glow component for React Native (iOS, Android, Web). A port of border-beam built on react-native-wgpu + TypeGPU + Reanimated.",
+  "description": "GPU-accelerated UI components for React Native (iOS, Android, Web). Built on react-native-wgpu + TypeGPU + Reanimated.",
   "license": "MIT",
   "main": "./src/index.ts",
   "react-native": "./src/index.ts",
   "source": "./src/index.ts",
   "module": "./lib/module/index.js",
-  "types": "./lib/typescript/index.d.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
-      "types": "./lib/typescript/index.d.ts",
-      "default": "./lib/module/index.js"
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
     }
   },
   "files": [
@@ -24,8 +24,9 @@
     "react-native",
     "expo",
     "webgpu",
-    "border",
-    "beam",
+    "wgpu",
+    "components",
+    "border-beam",
     "glow",
     "animation",
     "typegpu",
@@ -35,8 +36,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/anthropic-public/react-native-border-beam.git"
+    "url": "https://github.com/s-coimbra21/react-native-wgpu-components.git"
   },
+  "bugs": {
+    "url": "https://github.com/s-coimbra21/react-native-wgpu-components/issues"
+  },
+  "homepage": "https://s-coimbra21.github.io/react-native-wgpu-components/",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
