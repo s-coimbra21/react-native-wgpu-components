@@ -35,6 +35,7 @@ interface ResolvedProps {
   strokeWidth: number;
   bloomRadius: number;
   innerGlow: number;
+  strokeIntensity: number;
   colorsRgba: Float32Array;
   colorCount: number;
 }
@@ -53,6 +54,7 @@ function resolveProps(props: BorderBeamProps): ResolvedProps {
     strokeWidth: props.strokeWidth ?? defaults.strokeWidth,
     bloomRadius: props.bloomRadius ?? defaults.bloomRadius,
     innerGlow: props.innerGlow ?? defaults.innerGlow,
+    strokeIntensity: defaults.strokeIntensity,
     colorsRgba: rgba,
     colorCount: count,
   };
@@ -245,6 +247,7 @@ export function useBeamRenderer(
           brightness,
           saturation,
           colorCount: live.resolved.colorCount,
+          strokeIntensity: live.resolved.strokeIntensity,
           colorsRgba: live.resolved.colorsRgba,
         });
 

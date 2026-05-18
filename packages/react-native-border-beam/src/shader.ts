@@ -15,9 +15,10 @@ struct BeamUniforms {
   strength:   f32,
   brightness: f32,
   saturation: f32,
-  colorCount: u32,
-  _pad:       vec2<f32>,
-  colors:     array<vec4<f32>, 8>,
+  colorCount:      u32,
+  strokeIntensity: f32,
+  _pad:            f32,
+  colors:          array<vec4<f32>, 8>,
 };
 
 @group(0) @binding(0) var<uniform> u: BeamUniforms;
@@ -48,79 +49,17 @@ fn sdRoundBox(p: vec2<f32>, b: vec2<f32>, r: f32) -> f32 {
   return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0))) - r;
 }
 
-// Map a pixel position p (centered on the inner rect) to a normalized arc-length
-// coordinate s in [0,1), starting from the top-center and moving clockwise. Works for
-// both exterior and interior pixels: we project p onto the rounded-rect border first,
-// then compute the arc length of the projected point. This avoids the prior bug where
-// deep-interior pixels in each quadrant collapsed to a single constant s and produced
-// visible rectangular blocks when the orbit's bright head swept past.
-fn perimeterCoord(p: vec2<f32>, halfInner: vec2<f32>, r: f32) -> f32 {
-  let innerHalfW = max(halfInner.x - r, 0.0);
-  let innerHalfH = max(halfInner.y - r, 0.0);
-  let straightW = innerHalfW * 2.0;
-  let straightH = innerHalfH * 2.0;
-  let corner = 1.5707963 * r;
-  let perim = 2.0 * (straightW + straightH) + 4.0 * corner;
-  let safePerim = max(perim, 0.0001);
-
-  // Project p onto the rounded-rect border.
-  let cornerCenterBox = vec2<f32>(innerHalfW, innerHalfH);
-  let qClamp = clamp(p, -cornerCenterBox, cornerCenterBox);
-  let delta = p - qClamp;
-  let deltaLen = length(delta);
-  var nearest: vec2<f32>;
-  if (deltaLen < 0.0001) {
-    // Deep interior — project to the closer of the 4 straight edges.
-    let dxR = halfInner.x - p.x;
-    let dxL = p.x + halfInner.x;
-    let dyT = p.y + halfInner.y;
-    let dyB = halfInner.y - p.y;
-    if (min(dxR, dxL) < min(dyT, dyB)) {
-      nearest = select(vec2<f32>(-halfInner.x, p.y), vec2<f32>(halfInner.x, p.y), dxR < dxL);
-    } else {
-      nearest = select(vec2<f32>(p.x, halfInner.y), vec2<f32>(p.x, -halfInner.y), dyT < dyB);
-    }
-  } else {
-    nearest = qClamp + delta * (r / deltaLen);
-  }
-
-  let nax = abs(nearest.x);
-  let nay = abs(nearest.y);
-  let onTopOrBottom = nax <= innerHalfW + 0.001;
-  let onLeftOrRight = nay <= innerHalfH + 0.001;
-  var d: f32 = 0.0;
-
-  if (onTopOrBottom && nearest.y < 0.0) {
-    if (nearest.x >= 0.0) {
-      d = nearest.x;
-    } else {
-      d = perim + nearest.x;
-    }
-  } else if (onLeftOrRight && nearest.x > 0.0) {
-    d = innerHalfW + corner + (nearest.y + innerHalfH);
-  } else if (onTopOrBottom && nearest.y > 0.0) {
-    d = innerHalfW + corner + straightH + corner + (innerHalfW - nearest.x);
-  } else if (onLeftOrRight && nearest.x < 0.0) {
-    d = innerHalfW + corner + straightH + corner + straightW + corner + (innerHalfH - nearest.y);
-  } else {
-    // Corner arc.
-    let sx = select(-1.0, 1.0, nearest.x >= 0.0);
-    let sy = select(-1.0, 1.0, nearest.y >= 0.0);
-    let cx = sx * innerHalfW;
-    let cy = sy * innerHalfH;
-    let theta = atan2(nearest.y - cy, nearest.x - cx);
-    if (sx > 0.0 && sy < 0.0) {
-      d = innerHalfW + corner * clamp((theta + 1.5707963) / 1.5707963, 0.0, 1.0);
-    } else if (sx > 0.0 && sy > 0.0) {
-      d = innerHalfW + corner + straightH + corner * clamp(theta / 1.5707963, 0.0, 1.0);
-    } else if (sx < 0.0 && sy > 0.0) {
-      d = innerHalfW + corner + straightH + corner + straightW + corner * clamp((theta - 1.5707963) / 1.5707963, 0.0, 1.0);
-    } else {
-      d = innerHalfW + corner + straightH + corner + straightW + corner + straightH + corner * clamp((theta + 3.14159265) / 1.5707963, 0.0, 1.0);
-    }
-  }
-
-  return fract(d / safePerim);
+// Map a pixel position p (centered on the inner rect) to a smooth, cyclic
+// coordinate s in [0,1), starting from the top-center and increasing clockwise.
+// We use the angle from the rect's center — the same mapping CSS's conic-gradient
+// uses. An earlier arc-length variant produced visible 45-degree Voronoi seams at
+// each corner because the nearest-border projection switched discontinuously
+// across those diagonals; the angle-based version is continuous everywhere.
+fn perimeterCoord(p: vec2<f32>) -> f32 {
+  // With uv y growing downward: top is at angle -pi/2, right at 0, bottom at pi/2,
+  // left at +/-pi. Shift so top maps to 0, then divide by 2*pi.
+  let angle = atan2(p.y, p.x);
+  return fract((angle + 1.5707963) / 6.2831853 + 1.0);
 }
 
 fn sampleGradient(s: f32, count: u32) -> vec4<f32> {
@@ -150,42 +89,47 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
   let halfInner = u.innerSize * 0.5;
 
   let dist = sdRoundBox(pix, halfInner, u.radius);
-  let s = perimeterCoord(pix, halfInner, u.radius);
+  let s = perimeterCoord(pix);
 
   let safeDuration = max(u.duration, 0.0001);
   let head = fract(u.time / safeDuration);
 
-  // Each color stop is an orbiting 2D point light on the rounded-rect border. Its
-  // contribution to a pixel is a separable product of a *tangential* gaussian
-  // (narrow, along the perimeter) and a *perpendicular* gaussian (broader, into the
-  // interior and out into the bloom). Summing the weighted contributions gives the
-  // "glass with internal lights" look — multiple distinct elliptical lobes that rotate
-  // together as the head advances, with the interior gently illuminated between them.
-  // Color comes from a STATIC palette anchored to the pixel's own perimeter coord.
-  // The visible-brightness window (tanFade below) rotates with the head and reveals
-  // different parts of the gradient over time — same construction as the original
-  // border-beam, where a feathered conic mask rotates over a fixed color layer.
+  // Color: sample the static palette at the pixel's angular perimeter coord.
   let color = sampleGradient(s, u.colorCount);
 
-  // Wide, feathered tangential sweep mimicking the original conic mask. Sigma 0.22 gives
-  // a visible arc of ~44% of the perimeter with soft ramps on both sides — broad and soft,
-  // not a comet point. The sweep rotates with head.
+  // Wide, feathered tangential sweep mimicking the original conic mask. Sigma 0.22
+  // gives a visible arc of ~44% of the perimeter with soft ramps on both sides.
   let tailDist = fract(head - s + 1.0);
   let symDist = min(tailDist, 1.0 - tailDist);
   let tanFade = exp(-pow(symDist / 0.22, 2.0));
 
-  // Soft perpendicular fade. Floor keeps small (sm/line) presets illuminated; ratio
-  // drives the rect-size-relative depth on larger surfaces.
-  let inwardReach = max(min(halfInner.x, halfInner.y) * 0.7, 32.0);
+  // Inside fade uses RADIAL distance from the rect's centre, normalised by halfInner —
+  // so its iso-contours are ellipses matching the rect's aspect ratio, NOT parallel
+  // offsets of the rounded rect's border. That eliminates the "hyperbolic rectangle"
+  // shadow that an SDF-based fade would draw inside the bright halo (an inset rounded
+  // rect ghost). For the outside halo we still use the SDF-based fade because the
+  // outer bloom genuinely follows the border's shape.
+  let safeHalf = max(halfInner, vec2<f32>(1.0));
+  let ellipticalDist = length(pix / safeHalf);  // 0 at centre, 1 at border midpoints
+  let innerFade = 1.0 - exp(-pow(ellipticalDist * 1.4, 2.0));
+
   let outwardReach = max(u.bloomRadius, 6.0);
-  let intoInterior = max(-dist, 0.0);
   let outerDist = max(dist, 0.0);
   let isInside = select(0.0, 1.0, dist <= 0.0);
-  let perpFade = exp(-pow(intoInterior / inwardReach, 2.0)) * isInside
-               + exp(-pow(outerDist  / outwardReach, 2.0)) * (1.0 - isInside);
+  let perpFade = innerFade * isInside
+               + exp(-pow(outerDist / outwardReach, 2.0)) * (1.0 - isInside);
 
-  // Smoky, low-intensity composition. No explicit rim — the original has effectively none.
-  let intensity = tanFade * perpFade * u.innerGlow * u.brightness * 0.55;
+  // Glass haze: soft interior tint scaled by innerGlow.
+  let glass = tanFade * perpFade * u.innerGlow * 0.55;
+
+  // On-border stroke (line preset only — strokeIntensity is 0 for sm/md). A sharper
+  // gaussian band centred on the perimeter, modulated by the same rotating tanFade so
+  // the line is a moving colored beam tracing the border.
+  let strokeBand = max(u.strokeWidth * 4.0, 3.0);
+  let strokeFade = exp(-pow(abs(dist) / strokeBand, 2.0));
+  let stroke = strokeFade * tanFade * u.strokeIntensity;
+
+  let intensity = clamp((glass + stroke) * u.brightness, 0.0, 1.5);
 
   var rgb = color.rgb * intensity;
   rgb = adjustSaturation(rgb, u.saturation);

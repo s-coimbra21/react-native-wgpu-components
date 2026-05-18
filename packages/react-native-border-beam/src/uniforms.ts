@@ -13,15 +13,17 @@ import type { SizeDefaults, SizePreset } from './types';
 //   [11]    brightness        (f32)
 //   [12]    saturation        (f32)
 //   [13]    colorCount        (u32)  — written via Uint32Array view
-//   [14..15] _pad
+//   [14]    strokeIntensity   (f32)
+//   [15]    _pad              (f32)
 //   [16..47] colors[8] (vec4f each = 4 floats × 8 = 32 floats)
 export const UNIFORM_FLOAT_COUNT = 48;
 export const UNIFORM_BYTE_SIZE = UNIFORM_FLOAT_COUNT * 4; // 192 bytes
 
 export const SIZE_DEFAULTS: Record<SizePreset, SizeDefaults> = {
-  sm: { strokeWidth: 1, bloomRadius: 12, innerGlow: 0.4 },
-  md: { strokeWidth: 2, bloomRadius: 20, innerGlow: 0.6 },
-  line: { strokeWidth: 0.5, bloomRadius: 6, innerGlow: 0.2 },
+  sm: { strokeWidth: 1, bloomRadius: 12, innerGlow: 0.4, strokeIntensity: 0 },
+  md: { strokeWidth: 2, bloomRadius: 20, innerGlow: 0.6, strokeIntensity: 0 },
+  // `line` swaps the diffuse interior haze for a bright stroke tracing the border.
+  line: { strokeWidth: 1, bloomRadius: 6, innerGlow: 0.05, strokeIntensity: 1.4 },
 };
 
 export interface UniformWriteInput {
@@ -39,6 +41,7 @@ export interface UniformWriteInput {
   brightness: number;
   saturation: number;
   colorCount: number;
+  strokeIntensity: number;
   colorsRgba: Float32Array; // length >= 32
 }
 
@@ -68,7 +71,7 @@ export function writeUniformArray(
   floats[11] = input.brightness;
   floats[12] = input.saturation;
   uints[13] = input.colorCount;
-  floats[14] = 0;
+  floats[14] = input.strokeIntensity;
   floats[15] = 0;
   const stops = Math.min(input.colorsRgba.length, 32);
   for (let i = 0; i < stops; i++) {

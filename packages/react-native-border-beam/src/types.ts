@@ -31,6 +31,10 @@ export interface SizeDefaults {
   strokeWidth: number;
   bloomRadius: number;
   innerGlow: number;
+  // Per-preset intensity for the on-border stroke band. `line` uses a high value so
+  // its dominant visual is a glowing line tracing the border; `sm`/`md` use 0 to keep
+  // the soft interior haze unchanged.
+  strokeIntensity: number;
 }
 
 export interface ResolvedBeamProps {
