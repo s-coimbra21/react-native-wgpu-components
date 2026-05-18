@@ -42,7 +42,7 @@ export default function CardScreen() {
       </BorderBeam>
 
       <BorderBeam
-        colors={['#d500f9', '#00b0ff', '#1de9b6', '#d500f9']}
+        colors={['#d500f9', '#00b0ff', '#1de9b6']}
         borderRadius={28}
         duration={1.6}
         strength={0.9}
@@ -52,8 +52,8 @@ export default function CardScreen() {
         <View style={[styles.card, { backgroundColor: '#15131c' }]}>
           <Text style={styles.cardTitle}>Aurora</Text>
           <Text style={styles.cardBody}>
-            Four-stop palette wrapping through magenta → blue → green → magenta. Faster
-            orbit, slightly higher saturation.
+            Three-stop palette cycling magenta → blue → green. Faster orbit, slightly
+            higher saturation.
           </Text>
         </View>
       </BorderBeam>
